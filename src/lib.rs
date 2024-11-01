@@ -22,21 +22,21 @@ pub struct RoditContractMetadata {
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct TokenMetadata {
-    pub openapijsonurl: Option<String>,
-    pub notafter: Option<String>,
-    pub notbefore: Option<String>,
-    pub maxrequests: Option<String>,
-    pub maxrqwindow: Option<String>,
+    pub openapijson_url: Option<String>,
+    pub not_after: Option<String>,
+    pub not_before: Option<String>,
+    pub max_requests: Option<String>,
+    pub maxrq_window: Option<String>,
     pub webhook_url: Option<String>,
     pub webhook_cidr: Option<String>,
     pub userselected_dn: Option<String>,
     pub allowed_cidr: Option<String>,
     pub allowed_iso3166list: Option<String>,
-    pub jwtduration: Option<String>,
-    pub permissionedroutes: String,
-    pub subjectuniqueidentifierurl: Option<String>,
-    pub serviceproviderid: Option<String>,
-    pub serviceprovidersignature: Option<String>,
+    pub jwt_duration: Option<String>,
+    pub permissioned_routes: Option<String>,
+    pub subjectuniqueidentifier_url: Option<String>,
+    pub serviceprovider_id: Option<String>,
+    pub serviceprovider_signature: Option<String>,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]

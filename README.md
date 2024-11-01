@@ -1,0 +1,1 @@
+# mintrscontract-rodit

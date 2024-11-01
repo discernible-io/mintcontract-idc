@@ -1,0 +1,11 @@
+/home/icarus35/mintcontract-rodit/target/wasm32-unknown-unknown/debug/deps/libwee_alloc-0c4efb8c64d8c303.rmeta: /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/lib.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/extra_assert.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/const_init.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/neighbors.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/imp_wasm32.rs
+
+/home/icarus35/mintcontract-rodit/target/wasm32-unknown-unknown/debug/deps/libwee_alloc-0c4efb8c64d8c303.rlib: /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/lib.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/extra_assert.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/const_init.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/neighbors.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/imp_wasm32.rs
+
+/home/icarus35/mintcontract-rodit/target/wasm32-unknown-unknown/debug/deps/wee_alloc-0c4efb8c64d8c303.d: /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/lib.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/extra_assert.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/const_init.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/neighbors.rs /home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/imp_wasm32.rs
+
+/home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/lib.rs:
+/home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/extra_assert.rs:
+/home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/const_init.rs:
+/home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/neighbors.rs:
+/home/icarus35/.cargo/registry/src/index.crates.io-6f17d22bba15001f/wee_alloc-0.4.5/src/imp_wasm32.rs:

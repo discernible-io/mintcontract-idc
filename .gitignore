@@ -18,6 +18,7 @@ pnpm-lock.yaml
 /build
 /dist
 /out
+/target
 
 # IDE and editor files
 .idea/

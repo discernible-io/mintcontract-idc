@@ -4,13 +4,14 @@ use near_sdk::json_types::U128;
 use near_sdk::NearToken;
 use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise};
+use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise, require};
 
 pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.63";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const STORAGE_COST: NearToken = NearToken::from_yoctonear(1_000_000_000_000_000_000_000); // 0.001 NEAR
+pub const INITIALIZE_FEE: NearToken = NearToken::from_yoctonear(100_000_000_000_000_000_000); // 0.0001 NEAR
+pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct RoditContractMetadata {
     pub versionnumber: String,
@@ -19,7 +20,7 @@ pub struct RoditContractMetadata {
     pub issueruniqueidentifierURL: Option<String>,
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct TokenMetadata {
     pub openapijson_url: Option<String>,
@@ -66,6 +67,8 @@ pub struct Contract {
 impl Contract {
     #[init]
     pub fn init(owner_id: AccountId, metadata: Option<RoditContractMetadata>) -> Self {
+        require!(!env::state_exists(), "Contract is already initialized");
+        
         let metadata = metadata.unwrap_or_else(|| RoditContractMetadata {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Cableguard API forge".to_string(),
@@ -80,6 +83,7 @@ impl Contract {
             tokenMetadataById: UnorderedMap::new(b"tokenMetadataById".to_vec()),
             metadata,
         }
+    }
 
     #[payable]
     pub fn rodit_mint(
@@ -91,7 +95,7 @@ impl Contract {
     ) {
         let initial_storage_usage = env::storage_usage();
         
-        assert!(
+        require!(
             self.tokensById.get(&token_id).is_none(),
             "Token already exists"
         );
@@ -102,38 +106,83 @@ impl Contract {
 
         self.tokensById.insert(&token_id, &token);
         self.tokenMetadataById.insert(&token_id, &metadata);
-
         self.internal_add_token_to_owner(&owneraccount_id, &token_id);
 
-        let required_storage_in_bytes = env::storage_usage() - initial_storage_usage;
-        let required_cost = NearToken::from_yoctonear(
-            required_storage_in_bytes as u128 * STORAGE_COST.as_yoctonear()
-        );
-
-        let attached_deposit = env::attached_deposit();
+        // Calculate storage used
+        let storage_used = env::storage_usage() - initial_storage_usage;
         
-        assert!(
-            required_cost <= attached_deposit,
-            "Must attach at least {} yoctoNEAR to cover storage",
-            required_cost.as_yoctonear()
-        );
-
-        self.handle_fees(required_cost, attached_deposit, owneraccount_id, mintingfee_account);
-
-        env::log_str(
-            &serde_json::to_string(&json!({
-                "standard": RODIT_STANDARD_NAME,
-                "version": RODIT_METADATA_SPEC,
-                "event": "rodit_mint",
-                "data": [{
-                    "owner_id": token.owner_id,
-                    "token_ids": [token_id]
-                }]
-            }))
-            .unwrap(),
+        // Handle fees and storage based on actual usage
+        self.handle_account_fees_and_storage(
+            storage_used,
+            &owneraccount_id,
+            &mintingfee_account
         );
     }
 
+    fn handle_account_fees_and_storage(
+        &self,
+        storage_used: u64,
+        implicit_account_id: &AccountId,
+        minting_fee_account: &AccountId,
+    ) {
+        // Calculate required storage cost based on actual usage
+        let required_cost = NearToken::from_yoctonear(
+            (storage_used as u128) * env::storage_byte_cost().as_yoctonear()
+        );
+        
+        let attached_deposit = env::attached_deposit();
+        
+        require!(
+            required_cost <= attached_deposit,
+            format!("Must attach at least {} yoctoNEAR to cover storage and fee", required_cost.as_yoctonear())
+        );
+
+        // Initialize recipient account
+        Promise::new(implicit_account_id.clone())
+            .transfer(INITIALIZE_FEE);
+
+        // Calculate contract fee (1% of remaining after storage and init fee)
+        let contract_fee = NearToken::from_yoctonear(
+            (attached_deposit.as_yoctonear()
+                .saturating_sub(required_cost.as_yoctonear())
+                .saturating_sub(INITIALIZE_FEE.as_yoctonear())) / 100
+        );
+
+        // Calculate remaining balance for provider
+        let remaining_balance = NearToken::from_yoctonear(
+            attached_deposit.as_yoctonear()
+                .saturating_sub(required_cost.as_yoctonear())
+                .saturating_sub(contract_fee.as_yoctonear())
+                .saturating_sub(INITIALIZE_FEE.as_yoctonear())
+        );
+
+        // Log all operations
+        env::log_str(&format!(
+            "Initializing {} with {} yoctoNEAR",
+            implicit_account_id,
+            INITIALIZE_FEE.as_yoctonear()
+        ));
+        env::log_str(&format!(
+            "Contract collecting fee {} yoctoNEAR",
+            contract_fee.as_yoctonear()
+        ));
+        env::log_str(&format!(
+            "Sending provider {} API fee of {} yoctoNEAR",
+            minting_fee_account,
+            remaining_balance.as_yoctonear()
+        ));
+
+        // Transfer contract fee
+        Promise::new(env::current_account_id())
+            .transfer(contract_fee);
+
+        // Transfer remaining balance to provider if any
+        if remaining_balance.as_yoctonear() > 0 {
+            Promise::new(minting_fee_account.clone())
+                .transfer(remaining_balance);
+        }
+    }
+    
     #[payable]
     pub fn rodit_transfer(
         &mut self,
@@ -179,7 +228,7 @@ impl Contract {
         U128(self.tokenMetadataById.len() as u128)
     }
 
-    pub fn rodit_tokens(
+    pub fn rodit_tokens_for_owner(
         &self,
         from_index: Option<U128>,
         limit: Option<u64>,
@@ -213,9 +262,7 @@ impl Contract {
     pub fn rodit_metadata(&self) -> &RoditContractMetadata {
         &self.metadata
     }
-}
 
-impl Contract {
     fn internal_add_token_to_owner(&mut self, account_id: &AccountId, token_id: &String) {
         let mut tokens_set = self.tokensPerOwner.get(account_id).unwrap_or_else(|| {
             UnorderedSet::new(
@@ -274,36 +321,6 @@ impl Contract {
             }))
             .unwrap(),
         );
-    }
-
-    fn handle_fees(
-        &self,
-        storage_cost: NearToken,
-        attached_deposit: NearToken,
-        receiver_id: AccountId,
-        minting_fee_account: AccountId,
-    ) {
-        let initialize_fee = NearToken::from_yoctonear(100_000_000_000_000_000_000); // 0.1 NEAR
-        
-        let contract_fee = NearToken::from_yoctonear(
-            (attached_deposit.as_yoctonear()
-                .saturating_sub(storage_cost.as_yoctonear())
-                .saturating_sub(initialize_fee.as_yoctonear())) / 100
-        ); // 1% fee
-
-        let remaining_balance = NearToken::from_yoctonear(
-            attached_deposit.as_yoctonear()
-                .saturating_sub(storage_cost.as_yoctonear())
-                .saturating_sub(contract_fee.as_yoctonear())
-                .saturating_sub(initialize_fee.as_yoctonear())
-        );
-
-        Promise::new(receiver_id).transfer(initialize_fee);
-        Promise::new(env::current_account_id()).transfer(contract_fee);
-
-        if remaining_balance.as_yoctonear() > 0 {
-            Promise::new(minting_fee_account).transfer(remaining_balance);
-        }
     }
 }
 

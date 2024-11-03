@@ -6,7 +6,7 @@ use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise, require};
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.63";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.73";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: NearToken = NearToken::from_yoctonear(100_000_000_000_000_000_000); // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
@@ -250,6 +250,40 @@ impl Contract {
             })
             .collect()
     }
+
+    /* Closer to TS
+    // More equivalent Rust version
+pub fn rodit_tokens_for_owner(
+    &self,
+    account_id: AccountId,
+    from_index: Option<U128>,
+    limit: Option<u64>,
+) -> Vec<JsonToken> {
+    let tokens = self.tokens_per_owner.get(&account_id);
+    if tokens.is_none() {
+        return vec![];
+    }
+
+    let token_set = tokens.unwrap();
+    let start = u128::from(from_index.unwrap_or(U128(0))) as usize;
+    let limit = limit.unwrap_or(50) as usize;
+    
+    token_set.iter()
+        .skip(start)
+        .take(limit)
+        .filter_map(|token_id| {
+            let token = self.tokens_by_id.get(token_id)?;
+            let metadata = self.token_metadata_by_id.get(token_id)?;
+            Some(JsonToken {
+                token_id: token_id.clone(),
+                owner_id: token.owner_id,
+                metadata: metadata.clone(),
+            })
+        })
+        .collect()
+}
+        */
+
 
     pub fn rodit_supply_for_owner(&self, account_id: AccountId) -> U128 {
         if let Some(tokens) = self.tokensPerOwner.get(&account_id) {

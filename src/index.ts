@@ -8,7 +8,7 @@ import {
     assert, near, UnorderedSet
   } from "near-sdk-js";
   
-  export const RODIT_METADATA_SPEC = "RODIT-near.org-1.09.73";
+  export const RODIT_METADATA_SPEC = "RODIT-near.org-1.09.75";
   export const RODIT_STANDARD_NAME = "PENDING nepXXX";
   
   @NearBindgen({})
@@ -25,19 +25,19 @@ import {
       this.tokensById = new LookupMap("tokensById");
       this.tokenMetadataById = new UnorderedMap("tokenMetadataById");
       this.metadata = {
-        versionnumber: "RODIT-near.org-1.09.73",
+        versionnumber: "RODIT-near.org-1.09.75",
         name: "Cableguard API forge",
         symbol: "RODIT",
-        issueruniqueidentifierURL: "10973-cableguard.org",
+        issueruniqueidentifierURL: "10975-cableguard.org",
       };
     }
   
     @initialize({})
     init({ owner_id, metadata = {
-      versionnumber: "RODIT-near.org-1.09.73",
+      versionnumber: "RODIT-near.org-1.09.75",
       name: "Cableguard API forge",
       symbol: "RODIT",
-      issueruniqueidentifierURL: "10973-cableguard.org",
+      issueruniqueidentifierURL: "10975-cableguard.org",
     }}) {
       this.owner_id = owner_id;
       this.metadata = metadata;

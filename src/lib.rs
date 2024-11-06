@@ -6,7 +6,7 @@ use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise, require};
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.73";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.75";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: NearToken = NearToken::from_yoctonear(100_000_000_000_000_000_000); // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
@@ -23,21 +23,21 @@ pub struct RoditContractMetadata {
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct TokenMetadata {
-    pub openapijson_url: Option<String>,
-    pub not_after: Option<String>,
-    pub not_before: Option<String>,
-    pub max_requests: Option<String>,
-    pub maxrq_window: Option<String>,
-    pub webhook_url: Option<String>,
-    pub webhook_cidr: Option<String>,
-    pub userselected_dn: Option<String>,
-    pub allowed_cidr: Option<String>,
-    pub allowed_iso3166list: Option<String>,
-    pub jwt_duration: Option<String>,
-    pub permissioned_routes: Option<String>,
-    pub subjectuniqueidentifier_url: Option<String>,
-    pub serviceprovider_id: Option<String>,
-    pub serviceprovider_signature: Option<String>,
+    pub openapijson_url: String,
+    pub not_after: String,
+    pub not_before: String,
+    pub max_requests: String,
+    pub maxrq_window: String,
+    pub webhook_url: String,
+    pub webhook_cidr: String,
+    pub userselected_dn: String,
+    pub allowed_cidr: String,
+    pub allowed_iso3166list: String,
+    pub jwt_duration: String,
+    pub permissioned_routes: String,
+    pub subjectuniqueidentifier_url: String,
+    pub serviceprovider_id: String,
+    pub serviceprovider_signature: String,
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -73,7 +73,7 @@ impl Contract {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Cableguard API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifierURL: Some("10963-cableguard.org".to_string()),
+            issueruniqueidentifierURL: Some("10975-cableguard.org".to_string()),
         });
 
         Self {
@@ -143,9 +143,11 @@ impl Contract {
 
         // Calculate contract fee (1% of remaining after storage and init fee)
         let contract_fee = NearToken::from_yoctonear(
-            (attached_deposit.as_yoctonear()
-                .saturating_sub(required_cost.as_yoctonear())
-                .saturating_sub(INITIALIZE_FEE.as_yoctonear())) / 100
+            attached_deposit.as_yoctonear()
+                .checked_sub(required_cost.as_yoctonear())
+                .and_then(|amt| amt.checked_sub(INITIALIZE_FEE.as_yoctonear()))
+                .and_then(|amt| amt.checked_div(100))
+                .expect("Fee calculation overflow")
         );
 
         // Calculate remaining balance for provider
@@ -182,7 +184,7 @@ impl Contract {
                 .transfer(remaining_balance);
         }
     }
-    
+
     #[payable]
     pub fn rodit_transfer(
         &mut self,
@@ -228,7 +230,7 @@ impl Contract {
         U128(self.tokenMetadataById.len() as u128)
     }
 
-    pub fn rodit_tokens_for_owner(
+    pub fn rodit_tokens(
         &self,
         from_index: Option<U128>,
         limit: Option<u64>,
@@ -236,6 +238,7 @@ impl Contract {
         let start = u128::from(from_index.unwrap_or(U128(0)));
         let limit = limit.unwrap_or(50) as usize;
 
+        // Iterate through all tokens regardless of owner
         self.tokenMetadataById
             .iter()
             .skip(start as usize)
@@ -251,39 +254,32 @@ impl Contract {
             .collect()
     }
 
-    /* Closer to TS
-    // More equivalent Rust version
-pub fn rodit_tokens_for_owner(
-    &self,
-    account_id: AccountId,
-    from_index: Option<U128>,
-    limit: Option<u64>,
-) -> Vec<JsonToken> {
-    let tokens = self.tokens_per_owner.get(&account_id);
-    if tokens.is_none() {
-        return vec![];
+    pub fn rodit_tokens_for_owner(
+        &self,
+        account_id: AccountId,
+        from_index: Option<U128>,
+        limit: Option<u64>,
+    ) -> Vec<JsonToken> {
+        let tokens_set = self.tokensPerOwner.get(&account_id);
+        let tokens = if let Some(tokens_set) = tokens_set {
+            tokens_set.iter()
+                .skip(u128::from(from_index.unwrap_or(U128(0))) as usize)
+                .take(limit.unwrap_or(50) as usize)
+                .map(|token_id| {
+                    let metadata = self.tokenMetadataById.get(&token_id).unwrap();
+                    let token = self.tokensById.get(&token_id).unwrap();
+                    JsonToken {
+                        token_id,
+                        owner_id: token.owner_id,
+                        metadata,
+                    }
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+        tokens
     }
-
-    let token_set = tokens.unwrap();
-    let start = u128::from(from_index.unwrap_or(U128(0))) as usize;
-    let limit = limit.unwrap_or(50) as usize;
-    
-    token_set.iter()
-        .skip(start)
-        .take(limit)
-        .filter_map(|token_id| {
-            let token = self.tokens_by_id.get(token_id)?;
-            let metadata = self.token_metadata_by_id.get(token_id)?;
-            Some(JsonToken {
-                token_id: token_id.clone(),
-                owner_id: token.owner_id,
-                metadata: metadata.clone(),
-            })
-        })
-        .collect()
-}
-        */
-
 
     pub fn rodit_supply_for_owner(&self, account_id: AccountId) -> U128 {
         if let Some(tokens) = self.tokensPerOwner.get(&account_id) {

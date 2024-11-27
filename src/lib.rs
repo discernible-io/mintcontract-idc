@@ -92,7 +92,14 @@ impl Contract {
         metadata: TokenMetadata,
         owneraccount_id: AccountId,
         mintingfee_account: AccountId,
+        fee_signature: String,
     ) {
+        let fee_data = json!({
+            "token_id": token_id,
+            "mintingfee": env::attached_deposit(),
+            "mintingfeeaccount": mintingfee_account.to_string()
+        });
+        
         let initial_storage_usage = env::storage_usage();
         
         require!(

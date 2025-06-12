@@ -1,0 +1,33 @@
+{
+  "name": "rodit-auth",
+  "version": "1.0.0",
+  "description": "RODiT-based authentication system for Express.js applications",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "authentication",
+    "express",
+    "middleware",
+    "jwt",
+    "rodit"
+  ],
+  "author": "Rodit Technologies Inc.",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.2",
+    "jose": "^4.14.4",
+    "jsonwebtoken": "^9.0.0",
+    "nacl": "^0.0.0",
+    "tweetnacl": "^1.0.3",
+    "ulid": "^2.3.0"
+  },
+  "peerDependencies": {
+    "express": "^4.17.1 || ^5.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

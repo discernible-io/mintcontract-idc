@@ -137,7 +137,7 @@ impl Contract {
         metadata: TokenMetadata,
         owneraccount_id: AccountId,
         mintingfee_account: AccountId,
-        signature_base64url: String,
+        fee_signature_base64url: String,
     ) {
         self.assert_contract_active();
         
@@ -173,7 +173,7 @@ impl Contract {
             .as_bytes()
             .to_vec();
 
-        self.verify_fee_signature(message, signature_base64url);
+        self.verify_fee_signature(message, fee_signature_base64url);
         
         let initial_storage_usage = env::storage_usage();
         
@@ -622,14 +622,14 @@ pub fn resume(&mut self) {
         base64
     }
 
-    pub fn verify_fee_signature(&self, message: Vec<u8>, signature_base64url: String) {
+    pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) {
         // For debugging purposes, log the input parameters
         env::log_str(&format!("DEBUG: Message length: {}", message.len()));
         env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
-        env::log_str(&format!("DEBUG: Signature base64url: {}", signature_base64url));
+        env::log_str(&format!("DEBUG: Signature base64url: {}", fee_signature_base64url));
         
         // Convert base64url to standard base64 for compatibility with Rust's base64 library
-        let signature_base64 = Self::base64url_to_base64(&signature_base64url);
+        let signature_base64 = Self::base64url_to_base64(&fee_signature_base64url);
         env::log_str(&format!("DEBUG: Converted to base64: {}", signature_base64));
         
         // Decode signature with proper error handling

@@ -42,6 +42,22 @@ pub fn validate_cidr(cidr: &str) -> bool {
     CIDR_REGEX.is_match(cidr)
 }
 
+/// Helper function to validate escaped JSON strings
+pub fn validate_escaped_json(json_str: &str) -> bool {
+    if json_str.is_empty() {
+        return false;
+    }
+    
+    // Handle escaped JSON by unescaping it first
+    if let Ok(unescaped) = serde_json::from_str::<String>(format!("\"{}\"", json_str.replace("\"", "\\\""))) {
+        if let Ok(_) = serde_json::from_str::<serde_json::Value>(&unescaped) {
+            return true; // Valid JSON after unescaping
+        }
+    }
+    
+    false
+}
+
 /// Validates ISO 3166 country codes in JSON format
 /// Handles both simple comma-separated lists and JSON structures with allow/deny fields
 pub fn validate_iso3166(country_list_json: &str) -> bool {
@@ -52,10 +68,7 @@ pub fn validate_iso3166(country_list_json: &str) -> bool {
     
     // Try to parse as JSON first
     if country_list_json.starts_with('{') {
-        // This is likely a JSON object with allow/deny fields
-        // In Rust we only validate the format, not the specific structure
-        // The detailed validation happens in the JavaScript side
-        return true;
+        return validate_escaped_json(country_list_json);
     }
     
     // If not JSON, validate as a simple comma-separated list of country codes
@@ -142,10 +155,9 @@ pub fn validate_token_metadata(
     // Validate permissioned_routes as JSON if provided
     if let Some(routes) = permissioned_routes {
         if !routes.is_empty() {
-            // Try to parse as JSON to validate
-            match serde_json::from_str::<serde_json::Value>(routes) {
-                Ok(_) => {}, // Valid JSON
-                Err(e) => return Err(format!("Invalid permissioned_routes JSON: {}", e))
+            // Validate as escaped JSON
+            if !validate_escaped_json(routes) {
+                return Err(format!("Invalid permissioned_routes JSON: failed to parse escaped JSON"))
             }
         }
     }

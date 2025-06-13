@@ -201,7 +201,7 @@ impl Contract {
         };
 
         // Verify the fee signature and handle any errors
-        if let Err(err) = self.verify_fee_signature(message, fee_signature_base64url) {
+        if let Ok(Err(err)) = self.verify_fee_signature(message, fee_signature_base64url) {
             require!(false, format!("Fee signature verification failed: {}", err));
         }
         
@@ -658,8 +658,9 @@ pub fn resume(&mut self) {
     }
 
     /// Verifies that the fee signature is valid using one of the authorized signers
-    /// Returns Result<(), String> to allow for more graceful error handling
-    pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) -> Result<(), String> {
+    /// Returns Result<Result<(), String>, near_sdk::Abort> to allow for more graceful error handling
+    #[handle_result]
+    pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) -> Result<Result<(), String>, near_sdk::Abort> {
         // For debugging purposes, log the input parameters
         env::log_str(&format!("DEBUG: Message length: {}", message.len()));
         env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
@@ -678,14 +679,14 @@ pub fn resume(&mut self) {
             },
             Err(e) => {
                 env::log_str(&format!("DEBUG: Error decoding base64: {:?}", e));
-                return Err(format!("Invalid base64 encoding for signature: {}", e));
+                return Ok(Err(format!("Invalid base64 encoding for signature: {}", e)));
             }
         };
         
         // Validate signature length to prevent potential vulnerabilities
         if signature_bytes.len() != 64 {
             env::log_str(&format!("DEBUG: Invalid signature length: {}, expected 64", signature_bytes.len()));
-            return Err(format!("Invalid signature length: expected 64 bytes, got {}", signature_bytes.len()));
+            return Ok(Err(format!("Invalid signature length: expected 64 bytes, got {}", signature_bytes.len())));
         }
         
         let signature = match Signature::from_bytes(&signature_bytes) {
@@ -695,7 +696,7 @@ pub fn resume(&mut self) {
             },
             Err(e) => {
                 env::log_str(&format!("DEBUG: Error creating Signature: {:?}", e));
-                return Err(format!("Invalid signature format: {}", e));
+                return Ok(Err(format!("Invalid signature format: {}", e)));
             }
         };
         
@@ -705,7 +706,7 @@ pub fn resume(&mut self) {
         // Ensure there are authorized signers
         env::log_str(&format!("DEBUG: Number of authorized signers: {}", self.authorized_signers.len()));
         if self.authorized_signers.is_empty() {
-            return Err("No authorized signers configured".to_string());
+            return Ok(Err("No authorized signers configured".to_string()));
         }
         
         for (i, pk_bytes) in self.authorized_signers.iter().enumerate() {
@@ -732,10 +733,10 @@ pub fn resume(&mut self) {
         
         if !verified {
             env::log_str("DEBUG: Signature verification failed with all signers");
-            return Err("Invalid signature or unauthorized signer".to_string());
+            return Ok(Err("Invalid signature or unauthorized signer".to_string()));
         }
         
-        Ok(())
+        Ok(Ok(()))
     }
 }
 

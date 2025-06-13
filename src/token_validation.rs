@@ -3,41 +3,44 @@ use regex::Regex;
 use lazy_static::lazy_static;
 use serde_json;
 
-// Validation functions for token metadata - aligned with utils.js naming conventions
+// Regular expressions for validation
+lazy_static! {
+    static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    static ref URL_REGEX: Regex = Regex::new(r"^https?://[^\s/$.?#].[^\s]*$").unwrap();
+    static ref CIDR_REGEX: Regex = Regex::new(r"^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$").unwrap();
+}
 
 /// Validates a date string format (YYYY-MM-DD)
 /// Equivalent to part of validateAndSetDate in utils.js
 pub fn validate_date_format(date_str: &str) -> bool {
-    // ISO 8601 format: YYYY-MM-DD
-    lazy_static! {
-        static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    if date_str.is_empty() {
+        return false;
     }
+    
     DATE_REGEX.is_match(date_str)
 }
 
 /// Validates a URL format
 /// Equivalent to part of validateAndSetUrl in utils.js
 pub fn validate_url(url: &str) -> bool {
-    // First remove any existing protocol for testing
-    let normalized_url = url.replace("http://", "").replace("https://", "");
-    
-    // Basic URL validation - similar to the regex in utils.js
-    lazy_static! {
-        static ref URL_REGEX: Regex = Regex::new(
-            r"^(localhost(:[0-9]{1,5})?|([\.\da-z][\.\da-z-]*[\.\da-z]\.)*[\.\da-z][\.\da-z-]*[\.\da-z]\.[a-z\.]{2,6}(:[0-9]{1,5})?|((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(:[0-9]{1,5})?)([\/\w\.-]*)*\/?$"
-        ).unwrap();
+    if url.is_empty() {
+        return true; // Empty URL is considered valid (optional field)
     }
-    URL_REGEX.is_match(&normalized_url)
+    
+    // Basic URL validation using regex
+    if !URL_REGEX.is_match(url) {
+        return false;
+    }
+    
+    // Additional validation could be added here if needed
+    true
 }
 
 /// Validates a CIDR notation string
 /// No direct equivalent in utils.js, but used in token metadata validation
 pub fn validate_cidr(cidr: &str) -> bool {
-    // CIDR notation validation (IPv4)
-    lazy_static! {
-        static ref CIDR_REGEX: Regex = Regex::new(
-            r"^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$"
-        ).unwrap();
+    if cidr.is_empty() {
+        return true; // Empty CIDR is considered valid (optional field)
     }
     CIDR_REGEX.is_match(cidr)
 }
@@ -49,7 +52,7 @@ pub fn validate_escaped_json(json_str: &str) -> bool {
     }
     
     // Handle escaped JSON by unescaping it first
-    if let Ok(unescaped) = serde_json::from_str::<String>(format!("\"{}\"", json_str.replace("\"", "\\\""))) {
+    if let Ok(unescaped) = serde_json::from_str::<String>(format!("\"{}\"", json_str.replace("\"", "\\\"")).as_str()) {
         if let Ok(_) = serde_json::from_str::<serde_json::Value>(&unescaped) {
             return true; // Valid JSON after unescaping
         }
@@ -105,7 +108,7 @@ pub fn validate_token_metadata(
     allowed_cidr: &str,
     allowed_iso3166list: &str,
     jwt_duration: &str,
-    permissioned_routes: Option<&str>,
+    permissioned_routes: &str,
 ) -> Result<(), String> {
     // URL validations - similar to validateAndSetUrl in utils.js
     if !validate_url(openapijson_url) {
@@ -125,7 +128,7 @@ pub fn validate_token_metadata(
         return Err(format!("Invalid not_before date format (should be YYYY-MM-DD): {}", not_before));
     }
     
-    // Numeric string validations - no direct equivalent in utils.js but similar concept
+    // Numeric validations - similar to numeric validation in utils.js
     if !validate_numeric_string(max_requests) {
         return Err(format!("Invalid max_requests (should be a number): {}", max_requests));
     }
@@ -152,13 +155,11 @@ pub fn validate_token_metadata(
         return Err(format!("Invalid allowed_iso3166list format (should be comma-separated 2-letter country codes): {}", allowed_iso3166list));
     }
     
-    // Validate permissioned_routes as JSON if provided
-    if let Some(routes) = permissioned_routes {
-        if !routes.is_empty() {
-            // Validate as escaped JSON
-            if !validate_escaped_json(routes) {
-                return Err(format!("Invalid permissioned_routes JSON: failed to parse escaped JSON"))
-            }
+    // Validate permissioned_routes as JSON
+    if !permissioned_routes.is_empty() {
+        // Validate as escaped JSON
+        if !validate_escaped_json(permissioned_routes) {
+            return Err(format!("Invalid permissioned_routes JSON: failed to parse escaped JSON"))
         }
     }
     

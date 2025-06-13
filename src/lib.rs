@@ -176,7 +176,8 @@ impl Contract {
             &metadata.webhook_cidr,
             &metadata.allowed_cidr,
             &metadata.allowed_iso3166list,
-            &metadata.jwt_duration
+            &metadata.jwt_duration,
+            &metadata.permissioned_routes
         );
         
         // If validation fails, panic with the error message

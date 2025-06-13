@@ -4,9 +4,7 @@ use near_sdk::json_types::U128;
 use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, require};
-// Use base64 crate directly instead of deprecated near_sdk::base64
 extern crate base64;
-// Import ed25519 from a compatible crate since it's not in near_sdk
 use ed25519_dalek::{Verifier, PublicKey, Signature};
 
 mod token_validation;
@@ -529,9 +527,6 @@ fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id:
     }
 }
 
-// This function is now deprecated as we've implemented the transfer logic directly in the calling functions
-// to follow the checks-effects-interactions pattern for reentrancy protection
-#[deprecated]
 // Key management functions for fee signature verification
 pub fn add_authorized_signer(&mut self, public_key_base64: String) {
     self.assert_owner();

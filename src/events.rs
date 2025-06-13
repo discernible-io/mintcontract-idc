@@ -1,154 +1,87 @@
 use near_sdk::{env, AccountId};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{RODIT_METADATA_SPEC, RODIT_STANDARD_NAME};
 
+/// Helper function to log standardized events following NEP-297
+/// This reduces code duplication and improves maintainability
+fn log_event(event_name: &str, data: Value) {
+    let event = serde_json::to_string(&json!({
+        "standard": RODIT_STANDARD_NAME,
+        "version": RODIT_METADATA_SPEC,
+        "event": event_name,
+        "data": [data]
+    })).expect("Failed to serialize event");
+    
+    env::log_str(&event);
+}
+
 /// Standardized event emission following NEP-297
 pub fn emit_mint_event(owner_id: &AccountId, token_id: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_mint",
-            "data": [{
-                "owner_id": owner_id,
-                "token_ids": [token_id],
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_mint", json!({
+        "owner_id": owner_id,
+        "token_ids": [token_id],
+    }));
 }
 
 pub fn emit_transfer_event(sender_id: &AccountId, receiver_id: &AccountId, token_id: &str, memo: Option<&str>) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_transfer",
-            "data": [{
-                "old_owner_id": sender_id,
-                "new_owner_id": receiver_id,
-                "token_ids": [token_id],
-                "memo": memo,
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_transfer", json!({
+        "old_owner_id": sender_id,
+        "new_owner_id": receiver_id,
+        "token_ids": [token_id],
+        "memo": memo,
+    }));
 }
 
 pub fn emit_burn_event(owner_id: &AccountId, token_id: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_burn",
-            "data": [{
-                "owner_id": owner_id,
-                "token_ids": [token_id],
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_burn", json!({
+        "owner_id": owner_id,
+        "token_ids": [token_id],
+    }));
 }
 
 pub fn emit_recover_event(previous_owner: &AccountId, destination_account: &AccountId, token_id: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_recover",
-            "data": [{
-                "previous_owner_id": previous_owner,
-                "new_owner_id": destination_account,
-                "token_ids": [token_id],
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_recover", json!({
+        "previous_owner_id": previous_owner,
+        "new_owner_id": destination_account,
+        "token_ids": [token_id],
+    }));
 }
 
 pub fn emit_storage_payment(account_id: &AccountId, amount: u128) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_storage_payment",
-            "data": [{
-                "account_id": account_id,
-                "amount": amount.to_string(),
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_storage_payment", json!({
+        "account_id": account_id,
+        "amount": amount.to_string(),
+    }));
 }
 
 pub fn emit_contract_fee(amount: u128) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_contract_fee",
-            "data": [{
-                "amount": amount.to_string(),
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_contract_fee", json!({
+        "amount": amount.to_string(),
+    }));
 }
 
 pub fn emit_provider_fee(account_id: &AccountId, amount: u128) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_provider_fee",
-            "data": [{
-                "provider_id": account_id,
-                "amount": amount.to_string(),
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_provider_fee", json!({
+        "provider_id": account_id,
+        "amount": amount.to_string(),
+    }));
 }
 
 pub fn emit_signer_added(public_key_base64: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_signer_added",
-            "data": [{
-                "public_key": public_key_base64,
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_signer_added", json!({
+        "public_key": public_key_base64,
+    }));
 }
 
 pub fn emit_signer_removed(public_key_base64: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_signer_removed",
-            "data": [{
-                "public_key": public_key_base64,
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_signer_removed", json!({
+        "public_key": public_key_base64,
+    }));
 }
 
 pub fn emit_contract_status_change(status: &str) {
-    env::log_str(
-        &serde_json::to_string(&json!({
-            "standard": RODIT_STANDARD_NAME,
-            "version": RODIT_METADATA_SPEC,
-            "event": "rodit_status_change",
-            "data": [{
-                "status": status,
-            }]
-        }))
-        .unwrap(),
-    );
+    log_event("rodit_status_change", json!({
+        "status": status,
+    }));
 }

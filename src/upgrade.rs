@@ -14,7 +14,7 @@ pub struct ContractUpgrade {
 impl Default for ContractUpgrade {
     fn default() -> Self {
         Self {
-            upgrade_delay: 86400, // 24 hours in seconds
+            upgrade_delay: 300, // 5 minutes in seconds (for testing)
             upgrade_proposed_at: None,
             upgrade_proposed_by: None,
         }
@@ -62,38 +62,29 @@ impl ContractUpgrade {
     }
     
     /// Finalizes the upgrade after the delay period
-    pub fn finalize_upgrade(&mut self) -> Result<(), String> {
+    pub fn finalize_upgrade(&mut self) -> Result<(), &'static str> {
+        let current_time = env::block_timestamp() / 1_000_000_000;
+        
         // Check if an upgrade has been proposed
-        let proposed_at = self.upgrade_proposed_at
-            .ok_or_else(|| "No upgrade has been proposed".to_string())?;
+        let proposed_at = self.upgrade_proposed_at.ok_or("No upgrade has been proposed")?;
         
         // Check if the proposer matches
-        let proposer = self.upgrade_proposed_by.as_ref()
-            .ok_or_else(|| "No upgrade proposer found".to_string())?;
-        
-        require!(
-            env::predecessor_account_id() == *proposer,
-            "Only the account that proposed the upgrade can finalize it"
-        );
+        let proposer = self.upgrade_proposed_by.as_ref().ok_or("No upgrade proposer found")?;
+        require!(env::predecessor_account_id() == *proposer, "Only the account that proposed the upgrade can finalize it");
         
         // Check if enough time has passed
-        let current_time = env::block_timestamp() / 1_000_000_000;
-        require!(
-            current_time >= proposed_at + self.upgrade_delay,
-            format!("Upgrade delay period has not passed. Please wait {} more seconds", 
-                proposed_at + self.upgrade_delay - current_time)
-        );
-        
+        require!(current_time >= proposed_at + self.upgrade_delay, "Upgrade delay period has not passed");
+    
         // Reset upgrade state
         self.upgrade_proposed_at = None;
         self.upgrade_proposed_by = None;
-        
+    
         Ok(())
     }
     
     /// Sets a new upgrade delay period
     pub fn set_upgrade_delay(&mut self, new_delay: u64) {
-        require!(new_delay >= 3600, "Upgrade delay must be at least 1 hour");
+        require!(new_delay >= 60, "Upgrade delay must be at least 1 minute");
         self.upgrade_delay = new_delay;
     }
     

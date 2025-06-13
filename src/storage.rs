@@ -1,5 +1,5 @@
 use near_sdk::{env, AccountId, Promise, NearToken, require};
-use crate::{INITIALIZE_FEE, CONTRACT_FEE_PERCENTAGE, STORAGE_COST};
+use crate::{INITIALIZE_FEE, CONTRACT_FEE_PERCENTAGE, STORAGE_COST_PER_BYTE};
 use crate::events::{emit_storage_payment, emit_contract_fee, emit_provider_fee};
 
 /// Handles the storage costs and fee distribution for token minting
@@ -9,8 +9,7 @@ pub fn handle_account_fees_and_storage(
     minting_fee_account: &AccountId,
 ) -> Result<(), String> {
     // Calculate required storage cost based on actual usage
-    let storage_cost_per_byte = STORAGE_COST / 1000;
-    let required_storage_cost = storage_cost_per_byte.checked_mul(storage_used as u128)
+    let required_storage_cost = STORAGE_COST_PER_BYTE.checked_mul(storage_used as u128)
         .ok_or_else(|| "Storage cost calculation overflow".to_string())?;
     
     // Add a 10% buffer for future storage needs

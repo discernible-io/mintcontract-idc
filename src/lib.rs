@@ -20,7 +20,7 @@ pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250613";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
-pub const STORAGE_COST: u128 = 10_000_000_000_000_000_000_000; // 0.01 NEAR
+pub const STORAGE_COST_PER_BYTE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR per byte (NEAR standard)
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(crate = "near_sdk::serde")]
@@ -181,7 +181,7 @@ impl Contract {
         
         // If validation fails, panic with the error message
         if let Err(validation_error) = validation_result {
-            require!(false, validation_error);
+            require!(false, format!("Token metadata validation failed: {}", validation_error));
         }
         
         let fee_data = json!({
@@ -192,12 +192,18 @@ impl Contract {
         
         // Canonicalize the JSON to match JavaScript's canonicalization process
         let canonical_fee_data = Self::canonicalize_json(&fee_data);
-        let message = serde_json::to_string(&canonical_fee_data)
-            .expect("Failed to serialize fee data")
-            .as_bytes()
-            .to_vec();
+        let message = match serde_json::to_string(&canonical_fee_data) {
+            Ok(json_str) => json_str.as_bytes().to_vec(),
+            Err(e) => {
+                require!(false, format!("Failed to serialize fee data: {}", e));
+                vec![] // This line is never reached due to the require! above
+            }
+        };
 
-        self.verify_fee_signature(message, fee_signature_base64url);
+        // Verify the fee signature and handle any errors
+        if let Err(err) = self.verify_fee_signature(message, fee_signature_base64url) {
+            require!(false, format!("Fee signature verification failed: {}", err));
+        }
         
         let initial_storage_usage = env::storage_usage();
         
@@ -215,11 +221,19 @@ impl Contract {
         self.internal_add_token_to_owner(&owneraccount_id, &token_id);
 
         // Update contract stats
-        self.stats.total_supply = self.stats.total_supply.checked_add(1).expect("Total supply overflow");
+        self.stats.total_supply = self.stats.total_supply.checked_add(1)
+            .unwrap_or_else(|| {
+                require!(false, "Total supply calculation error: maximum supply reached");
+                0 // This line is never reached due to the require! above
+            });
         self.stats.last_updated_at = env::block_timestamp() / 1_000_000_000;
 
         // Calculate storage used
-        let storage_used = env::storage_usage().checked_sub(initial_storage_usage).expect("Storage usage underflow");
+        let storage_used = env::storage_usage().checked_sub(initial_storage_usage)
+            .unwrap_or_else(|| {
+                require!(false, "Storage usage calculation error: unexpected underflow");
+                0 // This line is never reached due to the require! above
+            });
         
         // Handle fees and storage based on actual usage using the new storage management system
         if let Err(err) = handle_account_fees_and_storage(storage_used, &owneraccount_id, &mintingfee_account) {
@@ -643,7 +657,9 @@ pub fn resume(&mut self) {
         base64
     }
 
-    pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) {
+    /// Verifies that the fee signature is valid using one of the authorized signers
+    /// Returns Result<(), String> to allow for more graceful error handling
+    pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) -> Result<(), String> {
         // For debugging purposes, log the input parameters
         env::log_str(&format!("DEBUG: Message length: {}", message.len()));
         env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
@@ -662,15 +678,14 @@ pub fn resume(&mut self) {
             },
             Err(e) => {
                 env::log_str(&format!("DEBUG: Error decoding base64: {:?}", e));
-                require!(false, "Invalid base64 encoding for signature");
-                vec![] // This line is never reached due to the require! above
+                return Err(format!("Invalid base64 encoding for signature: {}", e));
             }
         };
         
         // Validate signature length to prevent potential vulnerabilities
         if signature_bytes.len() != 64 {
             env::log_str(&format!("DEBUG: Invalid signature length: {}, expected 64", signature_bytes.len()));
-            require!(false, "Invalid signature length");
+            return Err(format!("Invalid signature length: expected 64 bytes, got {}", signature_bytes.len()));
         }
         
         let signature = match Signature::from_bytes(&signature_bytes) {
@@ -680,8 +695,7 @@ pub fn resume(&mut self) {
             },
             Err(e) => {
                 env::log_str(&format!("DEBUG: Error creating Signature: {:?}", e));
-                require!(false, "Invalid signature format");
-                unsafe { std::mem::zeroed() } // This line is never reached due to the require! above
+                return Err(format!("Invalid signature format: {}", e));
             }
         };
         
@@ -690,7 +704,9 @@ pub fn resume(&mut self) {
         
         // Ensure there are authorized signers
         env::log_str(&format!("DEBUG: Number of authorized signers: {}", self.authorized_signers.len()));
-        require!(!self.authorized_signers.is_empty(), "No authorized signers configured");
+        if self.authorized_signers.is_empty() {
+            return Err("No authorized signers configured".to_string());
+        }
         
         for (i, pk_bytes) in self.authorized_signers.iter().enumerate() {
             env::log_str(&format!("DEBUG: Checking signer #{}", i + 1));
@@ -716,9 +732,10 @@ pub fn resume(&mut self) {
         
         if !verified {
             env::log_str("DEBUG: Signature verification failed with all signers");
+            return Err("Invalid signature or unauthorized signer".to_string());
         }
         
-        require!(verified, "Invalid signature or unauthorized signer");
+        Ok(())
     }
 }
 

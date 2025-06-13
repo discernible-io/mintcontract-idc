@@ -123,7 +123,7 @@ export class Contract {
         combined_id_sanctum,
         serviceprovider_signature: SanctumBase64URLSignatureWithPortal,
         serviceprovider_public_key_base64url,
-        fee_signature,
+        fee_signature_base64url,
       } = SanctumBase64URLSignatureWithPortalsAndIDs;
 
       console.log("[DEBUG] API Response IDs:", {
@@ -322,9 +322,9 @@ export class Contract {
         portal_token_id,
         owneraccount_id: SanctumOwnerAccountId,
         mintingfee_account: providerSelectedValues.mintingfeeaccount,
-        fee_signature: {
-          value: fee_signature,
-          length: fee_signature?.length
+        fee_signature_base64url: {
+          value: fee_signature_base64url,
+          length: fee_signature_base64url?.length
         }
       });
 
@@ -339,7 +339,7 @@ export class Contract {
               metadata: SanctumMintingMetadata,
               owneraccount_id: SanctumOwnerAccountId,
               mintingfee_account: providerSelectedValues.mintingfeeaccount,
-              fee_signature: fee_signature,
+              fee_signature_base64url: fee_signature_base64url,
             },
             gas,
             deposit,
@@ -354,7 +354,7 @@ export class Contract {
               metadata: PortalMintingMetadata,
               owneraccount_id: SanctumOwnerAccountId,
               mintingfee_account: providerSelectedValues.mintingfeeaccount,
-              fee_signature: fee_signature,
+              fee_signature_base64url: fee_signature_base64url,
             },
             gas,
             deposit,

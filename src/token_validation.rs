@@ -1,6 +1,7 @@
 // No imports from near_sdk needed here
 use regex::Regex;
 use lazy_static::lazy_static;
+use serde_json;
 
 // Validation functions for token metadata - aligned with utils.js naming conventions
 
@@ -91,6 +92,7 @@ pub fn validate_token_metadata(
     allowed_cidr: &str,
     allowed_iso3166list: &str,
     jwt_duration: &str,
+    permissioned_routes: Option<&str>,
 ) -> Result<(), String> {
     // URL validations - similar to validateAndSetUrl in utils.js
     if !validate_url(openapijson_url) {
@@ -135,6 +137,17 @@ pub fn validate_token_metadata(
     // ISO 3166 country code list validation - no direct equivalent in utils.js
     if !validate_iso3166(allowed_iso3166list) {
         return Err(format!("Invalid allowed_iso3166list format (should be comma-separated 2-letter country codes): {}", allowed_iso3166list));
+    }
+    
+    // Validate permissioned_routes as JSON if provided
+    if let Some(routes) = permissioned_routes {
+        if !routes.is_empty() {
+            // Try to parse as JSON to validate
+            match serde_json::from_str::<serde_json::Value>(routes) {
+                Ok(_) => {}, // Valid JSON
+                Err(e) => return Err(format!("Invalid permissioned_routes JSON: {}", e))
+            }
+        }
     }
     
     Ok(())

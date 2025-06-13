@@ -103,9 +103,9 @@ impl Contract {
         
         let metadata = metadata.unwrap_or_else(|| RoditContractMetadata {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
-            name: "Cableguard API forge".to_string(),
+            name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifier_url: Some("10975-cableguard.org".to_string()),
+            issueruniqueidentifier_url: Some("20250613-rodit-org".to_string()),
         });
 
         let current_time = env::block_timestamp().checked_div(1_000_000_000).expect("Timestamp division overflow");

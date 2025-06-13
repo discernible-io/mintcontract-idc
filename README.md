@@ -1,7 +1,7 @@
 ![cableguard logo banner](./banner.png)
 
-## Cableguard DEV API forge for creating RODit
-Cableguard DEV API forge creates sets of RODIT in testnet with all the configuration and subscription information necessary to set up Cableguard TUN API calls.
+## Discernible DEV API forge for creating RODit
+Discernible DEV API forge creates sets of RODIT in testnet with all the configuration and subscription information necessary to set up Discernible TUN API calls.
 
 Authentication between API clients and server uses PKC with a twist. Ownership of the RODITs doubled-checked with the NEAR Protocol in real time, and the PKC pair used is the pair of the RODIT themselves.
 Read more here https://vaceituno.medium.com/unleashing-the-power-of-public-key-cryptography-with-non-fungible-tokens-513286d47524
@@ -45,7 +45,7 @@ Output example:
 - Resulting in the key pair stored in: ~/.near-credentials/testnet/9a1de9b4aa4ddd4a3091f43f1de680a9f5405d70e8ca69c3fb5daa96b5cd1270.json
 - From your NEAR wallet send some 0.01 Near to the newly generated implicit account ID to activate it
 
-## 6. Input the Cableguard configuration in the Front End
+## 6. Input the Discernible configuration in the Front End
 Input values for:
 - Number of clients: No default value
 - API Provider: No default value / IT CAN BE EMPTY
@@ -61,8 +61,8 @@ Input values for:
 - Private key in Base58 of the server for signatures: No default value
 - Implicit account of the service provider in HEX: No default value
 
-# Cableguard Ecosystem
-    Cableguard RODITAPI: RODIT and API manager
-    Cableguard TOOLS: local API tunnel configuration
-    Cableguard TUN: API tunnels
-    Cableguard DEV API forge: RODIT minter
+# Discernible Ecosystem
+    Discernible RODITAPI: RODIT and API manager
+    Discernible TOOLS: local API tunnel configuration
+    Discernible TUN: API tunnels
+    Discernible DEV API forge: RODIT minter

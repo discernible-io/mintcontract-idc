@@ -127,6 +127,32 @@ impl Contract {
             storage_deposits: LookupMap::new(b"storage_deposits".to_vec()),
         }
     }
+    
+    #[init(ignore_state)]
+    pub fn upgrade() -> Self {
+        // Read the old contract state
+        let old_contract: Contract = env::state_read().expect("Failed to read state");
+        
+        // Verify that only the contract owner can upgrade
+        require!(
+            env::predecessor_account_id() == old_contract.owner_id,
+            "Only the contract owner can upgrade the contract"
+        );
+        
+        // Create a new contract instance with the old state
+        Self {
+            owner_id: old_contract.owner_id,
+            tokens_per_owner: old_contract.tokens_per_owner,
+            tokens_by_id: old_contract.tokens_by_id,
+            token_metadata_by_id: old_contract.token_metadata_by_id,
+            metadata: old_contract.metadata,
+            status: old_contract.status,
+            stats: old_contract.stats,
+            authorized_signers: old_contract.authorized_signers,
+            upgrade_config: old_contract.upgrade_config,
+            storage_deposits: old_contract.storage_deposits,
+        }
+    }
 
     #[payable]
     pub fn rodit_mint(

@@ -18,7 +18,7 @@ use token_validation::validate_token_metadata;
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-1.09.75";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250613";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%

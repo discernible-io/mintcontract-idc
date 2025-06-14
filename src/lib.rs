@@ -16,7 +16,7 @@ use token_validation::validate_token_metadata;
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250615";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250616";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
@@ -105,7 +105,7 @@ impl Contract {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifier_url: Some("20250615.rodit.org".to_string()),
+            issueruniqueidentifier_url: Some("20250616.rodit.org".to_string()),
         });
 
         let current_time = env::block_timestamp().checked_div(1_000_000_000).expect("Timestamp division overflow");

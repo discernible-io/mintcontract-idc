@@ -1,0 +1,110 @@
+name: Deploy NEAR Contract
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      account_id:
+        description: 'NEAR account ID to deploy to'
+        required: true
+        default: '20250616-rodit-org.testnet'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-C link-arg=-s"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        override: true
+
+    - name: Install wasm-opt
+      run: |
+        curl -sSf https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-linux.tar.gz -L -o binaryen.tar.gz
+        tar -xzf binaryen.tar.gz
+        sudo cp binaryen-version_110/bin/wasm-opt /usr/local/bin/
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build WASM
+      run: cargo build --target wasm32-unknown-unknown --release
+
+    - name: Optimize WASM
+      run: |
+        wasm-opt -Oz -o ./target/wasm32-unknown-unknown/release/rodit_near_optimized.wasm ./target/wasm32-unknown-unknown/release/rodit_near.wasm
+        ls -la ./target/wasm32-unknown-unknown/release/
+
+    - name: Install NEAR CLI
+      run: |
+        curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        sudo npm install -g near-cli
+
+    - name: Setup NEAR credentials
+      run: |
+        mkdir -p ~/.near-credentials
+        echo '${{ secrets.NEAR_CREDENTIALS }}' > ~/.near-credentials/credentials.json
+        chmod 600 ~/.near-credentials/credentials.json
+
+    - name: Deploy to NEAR
+      run: |
+        ACCOUNT_ID=${{ github.event.inputs.account_id || '20250616-rodit-org.testnet' }}
+        NETWORK=${{ github.event.inputs.environment || 'testnet' }}
+        
+        echo "Deploying to $ACCOUNT_ID on $NETWORK"
+        
+        # Check if contract is already initialized
+        CONTRACT_STATUS=$(near view $ACCOUNT_ID get_contract_status --networkId $NETWORK || echo "NotInitialized")
+        
+        if [[ "$CONTRACT_STATUS" == *"NotInitialized"* ]]; then
+          echo "Contract not initialized, deploying with init..."
+          near deploy $ACCOUNT_ID ./target/wasm32-unknown-unknown/release/rodit_near_optimized.wasm --initFunction init --initArgs '{"owner_id": "'$ACCOUNT_ID'"}' --networkId $NETWORK
+        else
+          echo "Contract already initialized, checking upgrade status..."
+          UPGRADE_STATUS=$(near view $ACCOUNT_ID get_upgrade_status --networkId $NETWORK || echo "NoUpgrade")
+          
+          if [[ "$UPGRADE_STATUS" == *"null"* ]]; then
+            echo "No upgrade in progress, proposing upgrade..."
+            near call $ACCOUNT_ID propose_upgrade '{}' --accountId $ACCOUNT_ID --networkId $NETWORK
+            
+            echo "Waiting for upgrade delay (5 minutes)..."
+            sleep 310
+            
+            echo "Finalizing upgrade..."
+            near call $ACCOUNT_ID finalize_upgrade '{}' --accountId $ACCOUNT_ID --networkId $NETWORK
+          fi
+          
+          echo "Deploying with upgrade method..."
+          near deploy $ACCOUNT_ID ./target/wasm32-unknown-unknown/release/rodit_near_optimized.wasm \
+            --initFunction upgrade --initArgs '{}' --networkId $NETWORK
+          
+          echo "Resuming contract..."
+          near call $ACCOUNT_ID resume_contract '{}' --accountId $ACCOUNT_ID --networkId $NETWORK
+        fi
+        
+        echo "Deployment completed successfully!"

@@ -3,6 +3,7 @@
 **/*.rs.bk
 Cargo.lock
 wasm-pack.log
+contract.wasm
 
 # NEAR development artifacts
 /neardev

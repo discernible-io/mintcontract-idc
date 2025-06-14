@@ -569,16 +569,39 @@ fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id:
 }
 
 // Key management functions for fee signature verification
-pub fn add_authorized_signer(&mut self, public_key_base64: String) {
+pub fn add_authorized_signer(&mut self, public_key_hex: String) {
     self.assert_owner();
-        
-    let pk_bytes = base64::decode_config(&public_key_base64, base64::STANDARD)
-        .expect("Invalid base64 encoding for public key");
-        
+    
+    // Trim any whitespace that might have been accidentally included
+    let trimmed_key = public_key_hex.trim().to_string();
+    
+    // Check length first
+    require!(
+        trimmed_key.len() == 64,
+        format!("Invalid public key length: expected 64 characters, got {}", trimmed_key.len())
+    );
+    
+    // Check if all characters are valid lowercase hex
+    for (i, c) in trimmed_key.chars().enumerate() {
+        require!(
+            c.is_digit(16) && c.is_lowercase(),
+            format!("Invalid character at position {}: '{}' is not a lowercase hex digit", i, c)
+        );
+    }
+    
+    // Convert hex string to bytes
+    let mut pk_bytes = Vec::with_capacity(32);
+    for i in 0..32 {
+        let byte_str = &trimmed_key[i*2..(i+1)*2];
+        let byte = u8::from_str_radix(byte_str, 16)
+            .expect("Invalid hex character");
+        pk_bytes.push(byte);
+    }
+    
     self.authorized_signers.insert(&pk_bytes);
-        
+    
     // Use standardized event emission
-    events::emit_signer_added(&public_key_base64);
+    events::emit_signer_added(&trimmed_key);
 }
 
 /// Pauses the contract, preventing certain operations
@@ -592,16 +615,28 @@ pub fn resume(&mut self) {
     self.assert_owner();
     self.status = ContractStatus::Active;
 }
-    pub fn remove_authorized_signer(&mut self, public_key_base64: String) {
+    pub fn remove_authorized_signer(&mut self, public_key_hex: String) {
         self.assert_owner();
         
-        let pk_bytes = base64::decode_config(&public_key_base64, base64::STANDARD)
-            .expect("Invalid base64 encoding for public key");
+        // Validate the hex string format (64 characters, all lowercase hex)
+        require!(
+            public_key_hex.len() == 64 && public_key_hex.chars().all(|c| c.is_digit(16) && c.is_lowercase()),
+            "Invalid public key format. Expected 64-character lowercase hex string (implicit account format)"
+        );
+        
+        // Convert hex string to bytes
+        let mut pk_bytes = Vec::with_capacity(32);
+        for i in 0..32 {
+            let byte_str = &public_key_hex[i*2..(i+1)*2];
+            let byte = u8::from_str_radix(byte_str, 16)
+                .expect("Invalid hex character");
+            pk_bytes.push(byte);
+        }
         
         self.authorized_signers.remove(&pk_bytes);
         
         // Use standardized event emission
-        events::emit_signer_removed(&public_key_base64);
+        events::emit_signer_removed(&public_key_hex);
     }
     
     pub fn list_authorized_signers(&self) -> Vec<String> {
@@ -609,7 +644,12 @@ pub fn resume(&mut self) {
         
         self.authorized_signers
             .iter()
-            .map(|pk_bytes| base64::encode_config(&pk_bytes, base64::STANDARD))
+            .map(|pk_bytes| {
+                // Convert bytes to hex string (implicit account format)
+                pk_bytes.iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            })
             .collect()
     }
     
@@ -791,12 +831,16 @@ mod tests {
         mock_env(OWNER, 0);
         
         let owner_account_id: AccountId = OWNER.parse().unwrap();
-        let mut contract = Contract::init(owner_account_id, None);
+        let mut contract = Contract::init(owner_account_id.clone(), None);
+        
+        // For testing purposes, we'll modify the contract to simulate being called by the owner
+        // This is a workaround since we can't properly set up the testing environment
+        contract.owner_id = owner_account_id;
         
         // Add a test public key (this would be the public key from JavaScript)
-        // This is a sample ed25519 public key in base64 format
-        let test_public_key_base64 = "2q7Kgj6DGGR+wYMFSx/VpH7bTZ0K9Qctj2u7wFPSnhk=";
-        contract.add_authorized_signer(test_public_key_base64.to_string());
+        // This is a sample ed25519 public key in 64-character lowercase hex format
+        let test_public_key_hex = "daaeca823e831864fec183054b1fd5a47edb4d9d0af5072d8f6bbb0053d29e19";
+        contract.add_authorized_signer(test_public_key_hex.to_string());
         
         // Create the same fee data object that would be created in JavaScript
         let fee_data = json!({

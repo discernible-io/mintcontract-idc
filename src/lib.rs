@@ -584,8 +584,8 @@ pub fn add_authorized_signer(&mut self, public_key_hex: String) {
     // Check if all characters are valid lowercase hex
     for (i, c) in trimmed_key.chars().enumerate() {
         require!(
-            c.is_digit(16) && c.is_lowercase(),
-            format!("Invalid character at position {}: '{}' is not a lowercase hex digit", i, c)
+            c.is_digit(16) && (!c.is_alphabetic() || c.is_lowercase()),
+            format!("Invalid character at position {}: '{}' is not a valid lowercase hex digit", i, c)
         );
     }
     
@@ -642,6 +642,19 @@ pub fn resume(&mut self) {
     pub fn list_authorized_signers(&self) -> Vec<String> {
         self.assert_owner();
         
+        self.authorized_signers
+            .iter()
+            .map(|pk_bytes| {
+                // Convert bytes to hex string (implicit account format)
+                pk_bytes.iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
+            })
+            .collect()
+    }
+    
+    // View function to list authorized signers without owner check
+    pub fn view_authorized_signers(&self) -> Vec<String> {
         self.authorized_signers
             .iter()
             .map(|pk_bytes| {

@@ -639,19 +639,7 @@ pub fn resume(&mut self) {
         events::emit_signer_removed(&public_key_hex);
     }
     
-    pub fn list_authorized_signers(&self) -> Vec<String> {
-        self.assert_owner();
-        
-        self.authorized_signers
-            .iter()
-            .map(|pk_bytes| {
-                // Convert bytes to hex string (implicit account format)
-                pk_bytes.iter()
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<String>()
-            })
-            .collect()
-    }
+    // Function removed in favor of view_authorized_signers
     
     // View function to list authorized signers without owner check
     pub fn view_authorized_signers(&self) -> Vec<String> {

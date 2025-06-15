@@ -742,43 +742,113 @@ pub fn resume(&mut self) {
             }
         };
         
+        // Parse the message as JSON to canonicalize it
+        env::log_str("VERIFICATION: Starting JSON parsing and canonicalization");
+        let json_str = match String::from_utf8(message.clone()) {
+            Ok(s) => {
+                env::log_str(&format!("VERIFICATION: Raw message: {}", s));
+                s
+            },
+            Err(e) => {
+                env::log_str(&format!("ERROR: Failed to convert message to string: {:?}", e));
+                return Ok(Err(format!("Invalid message format (not UTF-8): {}", e)));
+            }
+        };
+        
+        // Parse the JSON string
+        let json_value: serde_json::Value = match serde_json::from_str(&json_str) {
+            Ok(v) => {
+                env::log_str(&format!("VERIFICATION: Parsed JSON: {}", serde_json::to_string(&v).unwrap_or_else(|_| "<serialization failed>".to_string())));
+                v
+            },
+            Err(e) => {
+                env::log_str(&format!("ERROR: Failed to parse JSON: {:?}", e));
+                env::log_str(&format!("ERROR: Invalid JSON content: {}", json_str));
+                return Ok(Err(format!("Invalid JSON format: {}", e)));
+            }
+        };
+        
+        // Canonicalize the JSON (already done in rodit_mint, but we do it again to be sure)
+        env::log_str("VERIFICATION: Canonicalizing JSON");
+        let canonical_json = Self::canonicalize_json(&json_value);
+        let canonical_json_str = match serde_json::to_string(&canonical_json) {
+            Ok(s) => {
+                env::log_str(&format!("VERIFICATION: Canonical JSON: {}", s));
+                s
+            },
+            Err(e) => {
+                env::log_str(&format!("ERROR: Failed to serialize canonical JSON: {:?}", e));
+                return Ok(Err(format!("Error serializing canonical JSON: {}", e)));
+            }
+        };
+        
+        // Calculate hash using SHA-512 (nacl.hash in JavaScript uses SHA-512)
+        env::log_str("VERIFICATION: Calculating SHA-512 hash");
+        use sha2::{Sha512, Digest};
+        let mut hasher = Sha512::new();
+        hasher.update(canonical_json_str.as_bytes());
+        let hash_result = hasher.finalize();
+        
+        // Convert hash to hex for logging
+        let hash_hex: String = hash_result.iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+        
+        env::log_str(&format!("VERIFICATION: Hash length: {}", hash_result.len()));
+        env::log_str(&format!("VERIFICATION: Hash (hex): {}", hash_hex));
+        env::log_str(&format!("VERIFICATION: First 32 bytes: {:?}", &hash_result[..32.min(hash_result.len())].to_vec()));
+        
         // Check against all authorized signers
         let mut verified = false;
         
         // Ensure there are authorized signers
-        env::log_str(&format!("DEBUG: Number of authorized signers: {}", self.authorized_signers.len()));
+        env::log_str(&format!("VERIFICATION: Number of authorized signers: {}", self.authorized_signers.len()));
         if self.authorized_signers.is_empty() {
+            env::log_str("ERROR: No authorized signers configured");
             return Ok(Err("No authorized signers configured".to_string()));
         }
         
+        // Try to verify with each authorized signer
         for (i, pk_bytes) in self.authorized_signers.iter().enumerate() {
-            env::log_str(&format!("DEBUG: Checking signer #{}", i + 1));
-            match PublicKey::from_bytes(&pk_bytes) {
-                Ok(public_key) => {
-                    env::log_str(&format!("DEBUG: Successfully created PublicKey for signer #{}", i + 1));
-                    match public_key.verify(&message, &signature) {
-                        Ok(_) => {
-                            env::log_str(&format!("DEBUG: Signature verified successfully with signer #{}", i + 1));
-                            verified = true;
-                            break;
-                        },
-                        Err(e) => {
-                            env::log_str(&format!("DEBUG: Verification failed with signer #{}: {:?}", i + 1, e));
-                        }
-                    }
+            env::log_str(&format!("VERIFICATION: Checking signer #{}", i + 1));
+            
+            // Convert bytes to hex for logging
+            let pk_hex: String = pk_bytes.iter()
+                .map(|b| format!("{:02x}", b))
+                .collect();
+            env::log_str(&format!("VERIFICATION: Signer public key (hex): {}", pk_hex));
+            
+            let public_key = match PublicKey::from_bytes(&pk_bytes) {
+                Ok(pk) => {
+                    env::log_str("VERIFICATION: Successfully parsed public key");
+                    pk
                 },
                 Err(e) => {
-                    env::log_str(&format!("DEBUG: Error creating PublicKey for signer #{}: {:?}", i + 1, e));
+                    env::log_str(&format!("ERROR: Failed to parse public key #{}: {:?}", i + 1, e));
+                    continue;
+                }
+            };
+            
+            env::log_str("VERIFICATION: Attempting verification with this key");
+            match public_key.verify(&hash_result, &signature) {
+                Ok(_) => {
+                    env::log_str(&format!("VERIFICATION: Signature verified successfully with signer #{}", i + 1));
+                    verified = true;
+                    break;
+                },
+                Err(e) => {
+                    env::log_str(&format!("VERIFICATION: Verification failed with signer #{}: {:?}", i + 1, e));
                 }
             }
         }
         
-        if !verified {
-            env::log_str("DEBUG: Signature verification failed with all signers");
-            return Ok(Err("Invalid signature or unauthorized signer".to_string()));
+        if verified {
+            env::log_str("VERIFICATION: Signature verification successful");
+            Ok(Ok(()))
+        } else {
+            env::log_str("ERROR: Signature verification failed with all authorized signers");
+            Ok(Err("Invalid signature or unauthorized signer - signature did not match any authorized key".to_string()))
         }
-        
-        Ok(Ok(()))
     }
 }
 

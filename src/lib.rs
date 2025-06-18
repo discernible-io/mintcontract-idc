@@ -108,7 +108,7 @@ impl Contract {
             issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
         });
 
-        let current_time = env::block_timestamp().checked_div(1_000_000_000).expect("Timestamp division overflow");
+        let current_time = env::block_timestamp().checked_div(1_000_000_000).unwrap_or_else(|| env::panic_str("Timestamp division overflow"));
         
         Self {
             owner_id,
@@ -131,7 +131,7 @@ impl Contract {
     #[init(ignore_state)]
     pub fn upgrade() -> Self {
         // Read the old contract state
-        let old_contract: Contract = env::state_read().expect("Failed to read state");
+        let old_contract: Contract = env::state_read().unwrap_or_else(|| env::panic_str("Failed to read state"));
         
         // Verify that only the contract owner can upgrade
         require!(
@@ -257,7 +257,7 @@ impl Contract {
         self.assert_contract_active();
         
         let sender_id = env::predecessor_account_id();
-        let token = self.tokens_by_id.get(&token_id).expect("No token found");
+        let token = self.tokens_by_id.get(&token_id).unwrap_or_else(|| env::panic_str("No token found"));
         
         // Use require! instead of assert for better error messages
         require!(
@@ -282,7 +282,7 @@ impl Contract {
         self.tokens_by_id.insert(&token_id, &token);
         
         // Update contract stats using checked arithmetic
-        self.stats.last_updated_at = env::block_timestamp().checked_div(1_000_000_000).expect("Timestamp division overflow");
+        self.stats.last_updated_at = env::block_timestamp().checked_div(1_000_000_000).unwrap_or_else(|| env::panic_str("Timestamp division overflow"));
         
         // 3. Interactions: External calls come last
         // Emit standardized event
@@ -303,7 +303,7 @@ impl Contract {
     }
 
     pub fn rodit_total_supply(&self) -> U128 {
-        U128(u128::try_from(self.token_metadata_by_id.len()).expect("Total supply conversion overflow"))
+        U128(u128::try_from(self.token_metadata_by_id.len()).unwrap_or_else(|_| env::panic_str("Total supply conversion overflow")))
     }
 
     pub fn rodit_tokens(
@@ -359,7 +359,7 @@ impl Contract {
 
     pub fn rodit_supply_for_owner(&self, account_id: AccountId) -> U128 {
         if let Some(tokens) = self.tokens_per_owner.get(&account_id) {
-            U128(u128::try_from(tokens.len()).expect("Owner supply conversion overflow"))
+            U128(u128::try_from(tokens.len()).unwrap_or_else(|_| env::panic_str("Owner supply conversion overflow")))
         } else {
             U128(0)
         }
@@ -481,7 +481,7 @@ pub fn rodit_burn(&mut self, token_id: String) {
     self.token_metadata_by_id.remove(&token_id);
         
     // Update contract stats using checked arithmetic
-    self.stats.total_supply = self.stats.total_supply.checked_sub(1).expect("Total supply underflow");
+    self.stats.total_supply = self.stats.total_supply.checked_sub(1).unwrap_or_else(|| env::panic_str("Total supply underflow"));
     self.stats.last_updated_at = env::block_timestamp() / 1_000_000_000;
         
     // 3. Interactions: External calls come last
@@ -558,7 +558,7 @@ fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id:
     let mut tokens_set = self
         .tokens_per_owner
         .get(account_id)
-        .expect("Token should be owned by the sender");
+        .unwrap_or_else(|| env::panic_str("Token should be owned by the sender"));
     tokens_set.remove(token_id);
         
     if tokens_set.is_empty() {
@@ -629,7 +629,7 @@ pub fn resume(&mut self) {
         for i in 0..32 {
             let byte_str = &public_key_hex[i*2..(i+1)*2];
             let byte = u8::from_str_radix(byte_str, 16)
-                .expect("Invalid hex character");
+                .unwrap_or_else(|_| env::panic_str("Invalid hex character"));
             pk_bytes.push(byte);
         }
         
@@ -768,8 +768,40 @@ pub fn resume(&mut self) {
             }
         };
         
+        // Extract the token_id from the message to handle batch minting
+        let current_token_id = match json_value.get("token_id") {
+            Some(token_id) => {
+                match token_id.as_str() {
+                    Some(id) => {
+                        env::log_str(&format!("VERIFICATION: Current token_id: {}", id));
+                        id.to_string()
+                    },
+                    None => {
+                        env::log_str("ERROR: token_id is not a string");
+                        return Ok(Err("token_id must be a string".to_string()));
+                    }
+                }
+            },
+            None => {
+                env::log_str("ERROR: token_id not found in message");
+                return Ok(Err("token_id not found in message".to_string()));
+            }
+        };
+        
+        // Check if this is a Sanctum or Portal token
+        let is_sanctum = current_token_id.contains("sanctum");
+        let is_portal = current_token_id.contains("portal");
+        
+        env::log_str(&format!("VERIFICATION: Token type - Sanctum: {}, Portal: {}", is_sanctum, is_portal));
+        
+        // For batch minting, we need to try both the original message and a modified message
+        // This is because the signature may have been generated for the paired token
+        let mut verification_results = Vec::new();
+        
+        // First, try with the original message
+        env::log_str("VERIFICATION: Trying verification with original message");
+        
         // Canonicalize the JSON (already done in rodit_mint, but we do it again to be sure)
-        env::log_str("VERIFICATION: Canonicalizing JSON");
         let canonical_json = Self::canonicalize_json(&json_value);
         let canonical_json_str = match serde_json::to_string(&canonical_json) {
             Ok(s) => {
@@ -789,14 +821,28 @@ pub fn resume(&mut self) {
         hasher.update(canonical_json_str.as_bytes());
         let hash_result = hasher.finalize();
         
-        // Convert hash to hex for logging
+        // Convert full hash to hex for logging
         let hash_hex: String = hash_result.iter()
             .map(|b| format!("{:02x}", b))
             .collect();
         
-        env::log_str(&format!("VERIFICATION: Hash length: {}", hash_result.len()));
-        env::log_str(&format!("VERIFICATION: Hash (hex): {}", hash_hex));
-        env::log_str(&format!("VERIFICATION: First 32 bytes: {:?}", &hash_result[..32.min(hash_result.len())].to_vec()));
+        env::log_str(&format!("VERIFICATION: Full hash length: {}", hash_result.len()));
+        env::log_str(&format!("VERIFICATION: Full hash (hex): {}", hash_hex));
+        
+        // TweetNaCl's nacl.sign.detached.verify() only uses the first 32 bytes of the SHA-512 hash
+        // Extract first 32 bytes for verification to match JavaScript behavior
+        let hash_for_verification = &hash_result[..32];
+        
+        // Convert verification hash to hex for logging
+        let verification_hash_hex: String = hash_for_verification.iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+        
+        env::log_str("VERIFICATION: Using first 32 bytes for verification");
+        env::log_str(&format!("VERIFICATION: Verification hash length: {}", hash_for_verification.len()));
+        env::log_str(&format!("VERIFICATION: Verification hash (hex): {}", verification_hash_hex));
+        
+        // Now try verification with the original message
         
         // Check against all authorized signers
         let mut verified = false;
@@ -830,7 +876,7 @@ pub fn resume(&mut self) {
             };
             
             env::log_str("VERIFICATION: Attempting verification with this key");
-            match public_key.verify(&hash_result, &signature) {
+            match public_key.verify(hash_for_verification, &signature) {
                 Ok(_) => {
                     env::log_str(&format!("VERIFICATION: Signature verified successfully with signer #{}", i + 1));
                     verified = true;
@@ -923,7 +969,7 @@ mod tests {
         // Canonicalize the JSON to match JavaScript's canonicalization process
         let canonical_fee_data = Contract::canonicalize_json(&fee_data);
         let message = serde_json::to_string(&canonical_fee_data)
-            .expect("Failed to serialize fee data")
+            .unwrap_or_else(|_| env::panic_str("Failed to serialize fee data"))
             .as_bytes()
             .to_vec();
         

@@ -1,7 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet};
 use near_sdk::json_types::U128;
-use serde_json::json;
+// Removed unused import: use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, require};
 extern crate base64;
@@ -130,28 +130,89 @@ impl Contract {
     
     #[init(ignore_state)]
     pub fn upgrade() -> Self {
-        // Read the old contract state
-        let old_contract: Contract = env::state_read().unwrap_or_else(|| env::panic_str("Failed to read state"));
+        // Read the old contract state with explicit error handling
+        let old_contract: Contract = match env::state_read() {
+            Some(state) => {
+                env::log_str("Successfully read previous contract state");
+                state
+            },
+            None => {
+                let error_msg = "Failed to read previous contract state";
+                env::log_str(&format!("ERROR: {}", error_msg));
+                env::panic_str(error_msg);
+            }
+        };
         
-        // Verify that only the contract owner can upgrade
-        require!(
-            env::predecessor_account_id() == old_contract.owner_id,
-            "Only the contract owner can upgrade the contract"
-        );
+        // Verify that only the contract owner can upgrade with clear error message
+        let predecessor = env::predecessor_account_id();
+        if predecessor != old_contract.owner_id {
+            let error_msg = format!("ERROR: Unauthorized upgrade attempt by {}, only the contract owner {} can upgrade", 
+                predecessor, old_contract.owner_id);
+            env::log_str(&error_msg);
+            env::panic_str(&error_msg);
+        }
         
-        // Create a new contract instance with the old state
-        Self {
+        // Log that we're updating metadata and config with specific version information
+        env::log_str(&format!("Upgrading contract metadata from version {} to {}", 
+            old_contract.metadata.versionnumber, RODIT_METADATA_SPEC));
+        env::log_str(&format!("Upgrading issuer URL from {} to 20260616.rodit.org", 
+            old_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>")));
+        env::log_str(&format!("Upgrading delay from {} to 30 seconds", 
+            old_contract.upgrade_config.upgrade_delay));
+        
+        // Create a new contract instance with updated metadata and config
+        let new_contract = Self {
             owner_id: old_contract.owner_id,
             tokens_per_owner: old_contract.tokens_per_owner,
             tokens_by_id: old_contract.tokens_by_id,
             token_metadata_by_id: old_contract.token_metadata_by_id,
-            metadata: old_contract.metadata,
+            
+            // Update metadata with new values from constants
+            metadata: RoditContractMetadata {
+                versionnumber: RODIT_METADATA_SPEC.to_string(),
+                name: old_contract.metadata.name,
+                symbol: old_contract.metadata.symbol,
+                issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
+            },
+            
             status: old_contract.status,
             stats: old_contract.stats,
             authorized_signers: old_contract.authorized_signers,
-            upgrade_config: old_contract.upgrade_config,
+            
+            // Update upgrade config with new delay
+            upgrade_config: upgrade::ContractUpgrade {
+                upgrade_delay: 30, // Use the new 30-second delay
+                upgrade_proposed_at: old_contract.upgrade_config.upgrade_proposed_at,
+                upgrade_proposed_by: old_contract.upgrade_config.upgrade_proposed_by,
+            },
+            
             storage_deposits: old_contract.storage_deposits,
+        };
+        
+        // Verify the upgrade was successful by checking critical values
+        if new_contract.metadata.versionnumber != RODIT_METADATA_SPEC.to_string() {
+            let error_msg = format!("ERROR: Metadata version not updated correctly. Expected {}, got {}", 
+                RODIT_METADATA_SPEC, new_contract.metadata.versionnumber);
+            env::log_str(&error_msg);
+            env::panic_str(&error_msg);
         }
+        
+        if new_contract.metadata.issueruniqueidentifier_url != Some("20260616.rodit.org".to_string()) {
+            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20260616.rodit.org, got {}", 
+                new_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>"));
+            env::log_str(&error_msg);
+            env::panic_str(&error_msg);
+        }
+        
+        if new_contract.upgrade_config.upgrade_delay != 30 {
+            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected 30, got {}", 
+                new_contract.upgrade_config.upgrade_delay);
+            env::log_str(&error_msg);
+            env::panic_str(&error_msg);
+        }
+        
+        env::log_str("Contract upgrade completed successfully with all values verified");
+        new_contract
     }
 
     #[payable]
@@ -162,6 +223,7 @@ impl Contract {
         owneraccount_id: AccountId,
         mintingfee_account: AccountId,
         fee_signature_base64url: String,
+        fee_data_json: String, // Added parameter for fee data JSON string
     ) {
         self.assert_contract_active();
         
@@ -185,21 +247,39 @@ impl Contract {
             require!(false, format!("Token metadata validation failed: {}", validation_error));
         }
         
-        let fee_data = json!({
-            "token_id": token_id,
-            "mintingfee": env::attached_deposit().to_string(),
-            "mintingfeeaccount": mintingfee_account.to_string()
-        });
+        // Use the provided fee_data_json directly instead of constructing it
+        // This ensures the exact same JSON string is used for verification as was used in the frontend
+        env::log_str(&format!("VERIFICATION: Using provided fee_data_json: {}", fee_data_json));
         
-        // Canonicalize the JSON to match JavaScript's canonicalization process
-        let canonical_fee_data = Self::canonicalize_json(&fee_data);
-        let message = match serde_json::to_string(&canonical_fee_data) {
-            Ok(json_str) => json_str.as_bytes().to_vec(),
-            Err(e) => {
-                require!(false, format!("Failed to serialize fee data: {}", e));
-                vec![] // This line is never reached due to the require! above
-            }
-        };
+        // Parse the JSON to extract the mintingfee
+        let fee_data: serde_json::Value = serde_json::from_str(&fee_data_json)
+            .unwrap_or_else(|e| panic!("Failed to parse fee data JSON: {}", e));
+        
+        // Extract the mintingfee value and convert to yoctoNEAR
+        let mintingfee_str = fee_data.get("mintingfee")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| panic!("mintingfee not found or not a string in fee data"));
+        
+        // Remove any " NEAR" suffix if present
+        let clean_fee = mintingfee_str.trim_end_matches(" NEAR");
+        
+        // Convert deposit string (as decimal NEAR) to yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+        let mintingfee_yocto = Self::convert_depositstring_to_yoctonear(clean_fee)
+            .unwrap_or_else(|e| panic!("Failed to convert mintingfee to yoctoNEAR: {}", e));
+        
+        // Compare with attached deposit
+        let attached_deposit = env::attached_deposit();
+        // Convert attached_deposit to u128 for comparison
+        let deposit_yocto = attached_deposit.as_yoctonear();
+        env::log_str(&format!("VERIFICATION: Deposit: {}, Fee in JSON: {}", deposit_yocto, mintingfee_yocto));
+        
+        require!(
+            deposit_yocto == mintingfee_yocto,
+            format!("Deposit ({}) does not match fee in JSON ({})", deposit_yocto, mintingfee_yocto)
+        );
+        
+        // Convert the JSON string to bytes for verification
+        let message = fee_data_json.as_bytes().to_vec();
 
         // Verify the fee signature and handle any errors
         if let Ok(Err(err)) = self.verify_fee_signature(message, fee_signature_base64url) {
@@ -246,6 +326,42 @@ impl Contract {
     }
 
     // The handle_account_fees_and_storage function has been moved to the storage module
+
+    // Helper function to convert deposit string (as decimal NEAR) to yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+    fn convert_depositstring_to_yoctonear(deposit_str: &str) -> Result<u128, String> {
+        // Split the string by decimal point
+        let parts: Vec<&str> = deposit_str.split('.').collect();
+        
+        if parts.len() > 2 {
+            return Err("Invalid NEAR amount format: too many decimal points".to_string());
+        }
+        
+        let whole_part = parts[0].parse::<u128>().map_err(|e| format!("Failed to parse whole part: {}", e))?;
+        
+        // Calculate yoctoNEAR for the whole part (1 NEAR = 10^24 yoctoNEAR)
+        let mut yocto_amount = whole_part * 10u128.pow(24);
+        
+        // If there's a fractional part, convert it to yoctoNEAR
+        if parts.len() == 2 {
+            let fractional_part = parts[1];
+            let mut fractional_yocto = 0u128;
+            
+            // Handle the fractional part (up to 24 decimal places for yoctoNEAR)
+            if !fractional_part.is_empty() {
+                // Ensure the fractional part is not too long
+                let decimal_places = fractional_part.len().min(24);
+                let fractional_str = format!("{:0<24}", fractional_part.chars().take(decimal_places).collect::<String>());
+                
+                // Parse the padded fractional part
+                fractional_yocto = fractional_str.parse::<u128>()
+                    .map_err(|e| format!("Failed to parse fractional part: {}", e))?;
+            }
+            
+            yocto_amount += fractional_yocto;
+        }
+        
+        Ok(yocto_amount)
+    }
 
     #[payable]
     pub fn rodit_transfer(
@@ -683,22 +799,6 @@ pub fn resume(&mut self) {
         }
     }
 
-    /// Converts a base64url encoded string to standard base64
-    /// base64url uses '-' instead of '+', '_' instead of '/', and omits padding
-    fn base64url_to_base64(base64url: &str) -> String {
-        let mut base64 = base64url.replace('-', "+").replace('_', "/");
-        
-        // Add padding if needed
-        match base64.len() % 4 {
-            0 => {}, // No padding needed
-            2 => base64.push_str("=="),
-            3 => base64.push('='),
-            _ => {}, // Invalid base64, will be caught during decoding
-        }
-        
-        base64
-    }
-
     /// Verifies that the fee signature is valid using one of the authorized signers
     /// Returns Result<Result<(), String>, near_sdk::Abort> to allow for more graceful error handling
     #[handle_result]
@@ -708,12 +808,11 @@ pub fn resume(&mut self) {
         env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
         env::log_str(&format!("DEBUG: Signature base64url: {}", fee_signature_base64url));
         
-        // Convert base64url to standard base64 for compatibility with Rust's base64 library
-        let signature_base64 = Self::base64url_to_base64(&fee_signature_base64url);
-        env::log_str(&format!("DEBUG: Converted to base64: {}", signature_base64));
+        // Decode base64url signature directly using URL_SAFE config
+        env::log_str("VERIFICATION: Decoding base64url signature directly");
         
         // Decode signature with proper error handling
-        let signature_bytes = match base64::decode(&signature_base64) {
+        let signature_bytes = match base64::decode_config(&fee_signature_base64url, base64::URL_SAFE) {
             Ok(bytes) => {
                 env::log_str(&format!("DEBUG: Signature bytes length: {}", bytes.len()));
                 env::log_str(&format!("DEBUG: First few bytes of signature: {:?}", &bytes.iter().take(10).collect::<Vec<_>>()));
@@ -794,11 +893,7 @@ pub fn resume(&mut self) {
         
         env::log_str(&format!("VERIFICATION: Token type - Sanctum: {}, Portal: {}", is_sanctum, is_portal));
         
-        // For batch minting, we need to try both the original message and a modified message
-        // This is because the signature may have been generated for the paired token
-        let mut verification_results = Vec::new();
-        
-        // First, try with the original message
+        // Try verification with the original message
         env::log_str("VERIFICATION: Trying verification with original message");
         
         // Canonicalize the JSON (already done in rodit_mint, but we do it again to be sure)
@@ -829,18 +924,11 @@ pub fn resume(&mut self) {
         env::log_str(&format!("VERIFICATION: Full hash length: {}", hash_result.len()));
         env::log_str(&format!("VERIFICATION: Full hash (hex): {}", hash_hex));
         
-        // TweetNaCl's nacl.sign.detached.verify() only uses the first 32 bytes of the SHA-512 hash
-        // Extract first 32 bytes for verification to match JavaScript behavior
-        let hash_for_verification = &hash_result[..32];
+        // Use the full SHA-512 hash for verification to match JavaScript behavior
+        env::log_str("VERIFICATION: Using full SHA-512 hash for verification");
         
-        // Convert verification hash to hex for logging
-        let verification_hash_hex: String = hash_for_verification.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect();
-        
-        env::log_str("VERIFICATION: Using first 32 bytes for verification");
-        env::log_str(&format!("VERIFICATION: Verification hash length: {}", hash_for_verification.len()));
-        env::log_str(&format!("VERIFICATION: Verification hash (hex): {}", verification_hash_hex));
+        // The hash_hex and hash_result variables are already available from above
+        // No need to create a separate hash_for_verification variable
         
         // Now try verification with the original message
         
@@ -876,7 +964,7 @@ pub fn resume(&mut self) {
             };
             
             env::log_str("VERIFICATION: Attempting verification with this key");
-            match public_key.verify(hash_for_verification, &signature) {
+            match public_key.verify(&hash_result, &signature) {
                 Ok(_) => {
                     env::log_str(&format!("VERIFICATION: Signature verified successfully with signer #{}", i + 1));
                     verified = true;

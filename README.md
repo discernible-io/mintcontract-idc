@@ -1,6 +1,6 @@
 ![cableguard logo banner](./banner.png)
 
-## Discernible DEV API forge for creating RODit
+## Discernible DEV API forge for creating RODiT
 Discernible DEV API forge creates sets of RODIT in testnet with all the configuration and subscription information necessary to set up Discernible TUN API calls.
 
 Authentication between API clients and server uses PKC with a twist. Ownership of the RODITs doubled-checked with the NEAR Protocol in real time, and the PKC pair used is the pair of the RODIT themselves.

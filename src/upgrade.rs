@@ -14,7 +14,7 @@ pub struct ContractUpgrade {
 impl Default for ContractUpgrade {
     fn default() -> Self {
         Self {
-            upgrade_delay: 300, // 5 minutes in seconds (for testing)
+            upgrade_delay: 30, // 1/2 minutes in seconds (for testing)
             upgrade_proposed_at: None,
             upgrade_proposed_by: None,
         }

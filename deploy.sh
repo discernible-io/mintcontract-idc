@@ -8,7 +8,7 @@ set -e  # Exit on any error
 
 # Default values
 NETWORK="testnet"
-UPGRADE_DELAY_SECONDS=300  # 5 minutes
+UPGRADE_DELAY_SECONDS=30  # 1/2 minutes
 POLLING_INTERVAL=10  # Check status every 10 seconds
 BUFFER_SECONDS=10  # Add a small buffer to the delay time
 

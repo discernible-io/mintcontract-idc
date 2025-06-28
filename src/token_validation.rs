@@ -6,7 +6,7 @@ use serde_json;
 // Regular expressions for validation
 lazy_static! {
     static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
-    static ref URL_REGEX: Regex = Regex::new(r"^https?://[^\s/$.?#].[^\s]*$").unwrap();
+    static ref URL_REGEX: Regex = Regex::new(r"^https://[^\s/$.?#].[^\s]*$").unwrap();
     static ref CIDR_REGEX: Regex = Regex::new(r"^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$").unwrap();
 }
 

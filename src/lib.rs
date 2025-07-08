@@ -1,7 +1,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet};
 use near_sdk::json_types::U128;
-// Removed unused import: use serde_json::json;
+use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, require};
 extern crate base64;
@@ -22,6 +22,59 @@ pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
 pub const STORAGE_COST_PER_BYTE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR per byte (NEAR standard)
 
+/// DID:wba JSON-LD context describing the RODiT token vocabulary.
+/// This is provided as a constant string so it can be returned via a view
+/// method without increasing on-chain storage requirements.
+pub const DID_WBA_JSON_LD: &str = r#"{
+  \"@context\": {
+    /* ---------------------------------------------------------
+       Core JSON-LD keywords
+    --------------------------------------------------------- */
+    \"id\": \"@id\",
+    \"type\": \"@type\",
+
+    /* ---------------------------------------------------------
+       Default namespace prefix for all RODiT terms
+       Change to your own domain & keep the trailing #
+    --------------------------------------------------------- */
+    \"rodit\": \"https://rodit.org/ns/rodit#\",
+
+    /* ---------------------------------------------------------
+       Token-level properties
+    --------------------------------------------------------- */
+    \"token_id\":            \"rodit:token_id\",
+    \"allowed_cidr\":        \"rodit:allowed_cidr\",
+    \"allowed_iso3166list\": \"rodit:allowed_iso3166list\",
+    \"jwt_duration\":        { \"@id\": \"rodit:jwt_duration\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
+    \"max_requests\":        { \"@id\": \"rodit:max_requests\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
+    \"maxrq_window\":        { \"@id\": \"rodit:maxrq_window\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
+    \"not_after\":           { \"@id\": \"rodit:not_after\",  \"@type\": \"http://www.w3.org/2001/XMLSchema#date\" },
+    \"not_before\":          { \"@id\": \"rodit:not_before\", \"@type\": \"http://www.w3.org/2001/XMLSchema#date\" },
+
+    /* ---------------------------------------------------------
+       Service descriptors & endpoints
+    --------------------------------------------------------- */
+    \"openapijson_url\":           { \"@id\": \"rodit:openapijson_url\",           \"@type\": \"@id\" },
+    \"subjectuniqueidentifier_url\": { \"@id\": \"rodit:subjectuniqueidentifier_url\", \"@type\": \"@id\" },
+    \"webhook_url\":               { \"@id\": \"rodit:webhook_url\",              \"@type\": \"@id\" },
+    \"webhook_cidr\":              \"rodit:webhook_cidr\",
+
+    /* ---------------------------------------------------------
+       Permission model & signatures
+    --------------------------------------------------------- */
+    \"permissioned_routes\":       \"rodit:permissioned_routes\",
+    \"serviceprovider_id\":        \"rodit:serviceprovider_id\",
+    \"controller\":            \"rodit:serviceprovider_id\",
+    \"serviceprovider_signature\": \"rodit:serviceprovider_signature\",
+    \"userselected_dn\":           \"rodit:userselected_dn\",
+
+    /* ---------------------------------------------------------
+       OPTIONAL: link to any DID or key that signs this token
+    --------------------------------------------------------- */
+    \"verificationMethod\":        { \"@id\": \"rodit:verificationMethod\", \"@type\": \"@id\" }
+  }
+}"#;
+
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub enum ContractStatus {
@@ -37,6 +90,8 @@ pub struct RoditContractMetadata {
     pub name: String,
     pub symbol: String,
     pub issueruniqueidentifier_url: Option<String>,
+    /// Embedded DID:wba JSON-LD context describing the vocabulary.
+    pub did_wba_jsonld: String,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
@@ -106,6 +161,7 @@ impl Contract {
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
             issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
+            did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
         });
 
         let current_time = env::block_timestamp().checked_div(1_000_000_000).unwrap_or_else(|| env::panic_str("Timestamp division overflow"));
@@ -173,6 +229,7 @@ impl Contract {
                 name: old_contract.metadata.name,
                 symbol: old_contract.metadata.symbol,
                 issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
+                did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
             },
             
             status: old_contract.status,
@@ -483,6 +540,42 @@ impl Contract {
 
     pub fn rodit_metadata(&self) -> &RoditContractMetadata {
         &self.metadata
+    }
+
+    /// View function returning the DID:wba JSON-LD context so that
+    /// front-ends can discover the vocabulary directly from the contract.
+    // Deprecated: kept for backward compatibility – now embedded within contract metadata.
+    pub fn did_wba_jsonld(&self) -> String {
+        self.metadata.did_wba_jsonld.clone()
+    }
+
+    /// Returns the contract metadata wrapped in a fully-formed JSON-LD document.
+    /// The `@context` is the embedded JSON-LD context, `id` is the contract account,
+    /// and `type` is set to `rodit:Contract`.
+    pub fn rodit_metadata_jsonld(&self) -> String {
+        let mut jsonld = json!({
+            "@context": self.metadata.did_wba_jsonld,
+            "id": env::current_account_id(),
+            "type": "rodit:Contract",
+            "versionnumber": self.metadata.versionnumber,
+            "name": self.metadata.name,
+            "symbol": self.metadata.symbol,
+        });
+        if let Some(url) = &self.metadata.issueruniqueidentifier_url {
+            jsonld["issueruniqueidentifier_url"] = serde_json::Value::String(url.clone());
+        }
+        jsonld.to_string()
+    }
+
+    /// Converts a base64url encoded string to standard base64 encoding.
+    /// Padding ("=") is added as required to reach a length that is a multiple of 4.
+    pub fn base64url_to_base64(input: &str) -> String {
+        let mut s = input.replace('-', "+").replace('_', "/");
+        let padding = (4 - s.len() % 4) % 4;
+        if padding > 0 {
+            s.push_str(&"=".repeat(padding));
+        }
+        s
     }
     
     // Contract management functions
@@ -1056,7 +1149,7 @@ mod tests {
         
         // Canonicalize the JSON to match JavaScript's canonicalization process
         let canonical_fee_data = Contract::canonicalize_json(&fee_data);
-        let message = serde_json::to_string(&canonical_fee_data)
+        let _message = serde_json::to_string(&canonical_fee_data)
             .unwrap_or_else(|_| env::panic_str("Failed to serialize fee data"))
             .as_bytes()
             .to_vec();

@@ -980,11 +980,8 @@ pub fn resume(&mut self) {
             }
         };
         
-        // Check if this is a Sanctum or Portal token
-        let is_sanctum = current_token_id.contains("sanctum");
-        let is_portal = current_token_id.contains("portal");
-        
-        env::log_str(&format!("VERIFICATION: Token type - Sanctum: {}, Portal: {}", is_sanctum, is_portal));
+        // Token type classification removed – token IDs never contain these substrings.
+        // (Previously checked for "sanctum" or "portal" inside the token_id and logged the result.)
         
         // Try verification with the original message
         env::log_str("VERIFICATION: Trying verification with original message");

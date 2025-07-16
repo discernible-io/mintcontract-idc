@@ -1,5 +1,5 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet};
+use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
 use near_sdk::json_types::U128;
 use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
@@ -139,7 +139,7 @@ pub struct ContractStats {
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     pub owner_id: AccountId,
-    pub tokens_per_owner: LookupMap<AccountId, UnorderedSet<String>>,
+    pub tokens_per_owner: LookupMap<AccountId, Vector<String>>,
     pub tokens_by_id: LookupMap<String, Token>,
     pub token_metadata_by_id: UnorderedMap<String, TokenMetadata>,
     pub metadata: RoditContractMetadata,
@@ -509,9 +509,10 @@ impl Contract {
         from_index: Option<U128>,
         limit: Option<u64>,
     ) -> Vec<JsonToken> {
-        let tokens_set = self.tokens_per_owner.get(&account_id);
-        let tokens = if let Some(tokens_set) = tokens_set {
-            tokens_set.iter()
+        let tokens_vec_opt = self.tokens_per_owner.get(&account_id);
+        let tokens = if let Some(tokens_vec) = tokens_vec_opt {
+            tokens_vec
+                .iter()
                 .skip(u128::from(from_index.unwrap_or(U128(0))) as usize)
                 .take(limit.unwrap_or(50) as usize)
                 .map(|token_id| {
@@ -752,28 +753,42 @@ pub fn rodit_tokens_filtered(
 }
 
 fn internal_add_token_to_owner(&mut self, account_id: &AccountId, token_id: &String) {
-    let mut tokens_set = self.tokens_per_owner.get(account_id).unwrap_or_else(|| {
-        UnorderedSet::new(
+    let mut tokens_vec = self.tokens_per_owner.get(account_id).unwrap_or_else(|| {
+        Vector::new(
             format!("tokens_per_owner{}", account_id)
                 .as_bytes()
                 .to_vec(),
         )
     });
-    tokens_set.insert(token_id);
-    self.tokens_per_owner.insert(account_id, &tokens_set);
+    tokens_vec.push(token_id);
+    self.tokens_per_owner.insert(account_id, &tokens_vec);
 }
 
 fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id: &String) {
-    let mut tokens_set = self
+    let mut tokens_vec = self
         .tokens_per_owner
         .get(account_id)
         .unwrap_or_else(|| env::panic_str("Token should be owned by the sender"));
-    tokens_set.remove(token_id);
-        
-    if tokens_set.is_empty() {
+
+    // Find index of the token to remove
+    let mut index_to_remove: Option<u64> = None;
+    for (idx, id) in tokens_vec.iter().enumerate() {
+        if &id == token_id {
+            index_to_remove = Some(idx as u64);
+            break;
+        }
+    }
+
+    if let Some(idx) = index_to_remove {
+        tokens_vec.swap_remove(idx);
+    } else {
+        env::panic_str("Token ID not found for owner");
+    }
+
+    if tokens_vec.is_empty() {
         self.tokens_per_owner.remove(account_id);
     } else {
-        self.tokens_per_owner.insert(account_id, &tokens_set);
+        self.tokens_per_owner.insert(account_id, &tokens_vec);
     }
 }
 

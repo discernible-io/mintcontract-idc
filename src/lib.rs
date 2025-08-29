@@ -16,7 +16,7 @@ use token_validation::validate_token_metadata;
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250829";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20250930";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
@@ -160,7 +160,7 @@ impl Contract {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifier_url: Some("20250829.rodit.org".to_string()),
+            issueruniqueidentifier_url: Some("20250930.rodit.org".to_string()),
             did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
         });
 
@@ -211,7 +211,7 @@ impl Contract {
         // Log that we're updating metadata and config with specific version information
         env::log_str(&format!("Upgrading contract metadata from version {} to {}", 
             old_contract.metadata.versionnumber, RODIT_METADATA_SPEC));
-        env::log_str(&format!("Upgrading issuer URL from {} to 20250829.rodit.org", 
+        env::log_str(&format!("Upgrading issuer URL from {} to 20250930.rodit.org", 
             old_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>")));
         env::log_str(&format!("Upgrading delay from {} to 30 seconds", 
             old_contract.upgrade_config.upgrade_delay));
@@ -228,7 +228,7 @@ impl Contract {
                 versionnumber: RODIT_METADATA_SPEC.to_string(),
                 name: old_contract.metadata.name,
                 symbol: old_contract.metadata.symbol,
-                issueruniqueidentifier_url: Some("20250829.rodit.org".to_string()),
+                issueruniqueidentifier_url: Some("20250930.rodit.org".to_string()),
                 did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
             },
             
@@ -254,8 +254,8 @@ impl Contract {
             env::panic_str(&error_msg);
         }
         
-        if new_contract.metadata.issueruniqueidentifier_url != Some("20250829.rodit.org".to_string()) {
-            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20250829.rodit.org, got {}", 
+        if new_contract.metadata.issueruniqueidentifier_url != Some("20250930.rodit.org".to_string()) {
+            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20250930.rodit.org, got {}", 
                 new_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>"));
             env::log_str(&error_msg);
             env::panic_str(&error_msg);

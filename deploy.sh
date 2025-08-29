@@ -2,7 +2,7 @@
 
 # update_contract.sh - Automates the NEAR contract upgrade process
 # Usage: ./update_contract.sh <account_id> [network]
-# Example: ./update_contract.sh 20250829-rodit-org.testnet testnet
+# Example: ./update_contract.sh 20250930-rodit-org.testnet testnet
 
 set -e  # Exit on any error
 
@@ -11,6 +11,8 @@ NETWORK="testnet"
 UPGRADE_DELAY_SECONDS=30  # 1/2 minutes
 POLLING_INTERVAL=10  # Check status every 10 seconds
 BUFFER_SECONDS=10  # Add a small buffer to the delay time
+# Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
+INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
 
 # Parse arguments
 if [ -z "$1" ]; then
@@ -39,6 +41,31 @@ if [ $? -ne 0 ]; then
 fi
 echo "Contract built successfully!"
 echo
+
+# Initial deployment detection and flow
+echo "Checking if contract is already initialized on $ACCOUNT_ID ..."
+if ! /usr/bin/near view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
+  echo "No initialized contract detected. Performing initial deploy + init."
+
+  # Step A: Upload code (this requires the account to have enough balance to cover code storage)
+  echo "Initial deploy: uploading wasm ..."
+  if ! /usr/bin/near contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-keychain send; then
+    echo "Error: Failed to deploy code."
+    echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
+    exit 1
+  fi
+
+  # Step B: Initialize (init is not payable; attach 0 NEAR)
+  echo "Calling init ..."
+  if ! /usr/bin/near call "$ACCOUNT_ID" init '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' --account-id "$ACCOUNT_ID" --network-id "$NETWORK"; then
+    echo "Error: init call failed"
+    exit 1
+  fi
+
+  echo "Initial deployment completed successfully!"
+  echo "Contract is initialized and active."
+  exit 0
+fi
 
 # Step 2: Propose the upgrade
 echo "Step 2: Proposing upgrade..."

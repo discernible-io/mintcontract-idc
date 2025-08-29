@@ -2,7 +2,7 @@
 
 # update_contract.sh - Automates the NEAR contract upgrade process
 # Usage: ./update_contract.sh <account_id> [network]
-# Example: ./update_contract.sh 20260616-rodit-org.testnet testnet
+# Example: ./update_contract.sh 20250829-rodit-org.testnet testnet
 
 set -e  # Exit on any error
 

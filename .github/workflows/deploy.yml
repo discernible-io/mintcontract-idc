@@ -16,7 +16,7 @@ on:
       account_id:
         description: 'NEAR account ID to deploy to'
         required: true
-        default: '20260616-rodit-org.testnet'
+        default: '20250829-rodit-org.testnet'
 
 env:
   CARGO_TERM_COLOR: always
@@ -73,7 +73,7 @@ jobs:
 
     - name: Deploy to NEAR
       run: |
-        ACCOUNT_ID=${{ github.event.inputs.account_id || '20260616-rodit-org.testnet' }}
+        ACCOUNT_ID=${{ github.event.inputs.account_id || '20250829-rodit-org.testnet' }}
         NETWORK=${{ github.event.inputs.environment || 'testnet' }}
         
         echo "Deploying to $ACCOUNT_ID on $NETWORK"

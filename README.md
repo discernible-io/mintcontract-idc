@@ -48,13 +48,13 @@ Output example:
 ## 6. Input the Discernible configuration in the Front End
 Input values for:
 - Number of clients: No default value
-- API Provider: No default value / IT CAN BE EMPTY
-- API Service Description: No default value / IT CAN BE EMPTY
-- Date of Expiration of API Service: 1 year in the future from today / IT CAN BE EMPTY
+- API Provider: No default value / IT CAN BackEnd EMPTY
+- API Service Description: No default value / IT CAN BackEnd EMPTY
+- Date of Expiration of API Service: 1 year in the future from today / IT CAN BackEnd EMPTY
 - Date of Start of API Service: today
 - IPv4 addresses range of the API clients: 10.0.0.1/24
 - Port where the API server listens: A random number between 49152 and 65535
-- DNS server IPv4 address: : No default value / IT CAN BE EMPTY
+- DNS server IPv4 address: : No default value / IT CAN BackEnd EMPTY
 - Initial IPv4 address for API clients: 0.0.0.0/0, ::/0
 - IPv4 address of the API server where the clients connect: No default value
 - Maximum KB per second of each API connection: 100000

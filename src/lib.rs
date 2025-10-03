@@ -1,5 +1,5 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
+use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector, Vector};
 use near_sdk::json_types::U128;
 use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use token_validation::validate_token_metadata;
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20260616";
+pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20251001";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
@@ -160,7 +160,7 @@ impl Contract {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
+            issueruniqueidentifier_url: Some("20251001.rodit.org".to_string()),
             did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
         });
 
@@ -211,7 +211,7 @@ impl Contract {
         // Log that we're updating metadata and config with specific version information
         env::log_str(&format!("Upgrading contract metadata from version {} to {}", 
             old_contract.metadata.versionnumber, RODIT_METADATA_SPEC));
-        env::log_str(&format!("Upgrading issuer URL from {} to 20260616.rodit.org", 
+        env::log_str(&format!("Upgrading issuer URL from {} to 20251001.rodit.org", 
             old_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>")));
         env::log_str(&format!("Upgrading delay from {} to 30 seconds", 
             old_contract.upgrade_config.upgrade_delay));
@@ -228,7 +228,7 @@ impl Contract {
                 versionnumber: RODIT_METADATA_SPEC.to_string(),
                 name: old_contract.metadata.name,
                 symbol: old_contract.metadata.symbol,
-                issueruniqueidentifier_url: Some("20260616.rodit.org".to_string()),
+                issueruniqueidentifier_url: Some("20251001.rodit.org".to_string()),
                 did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
             },
             
@@ -254,8 +254,8 @@ impl Contract {
             env::panic_str(&error_msg);
         }
         
-        if new_contract.metadata.issueruniqueidentifier_url != Some("20260616.rodit.org".to_string()) {
-            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20260616.rodit.org, got {}", 
+        if new_contract.metadata.issueruniqueidentifier_url != Some("20251001.rodit.org".to_string()) {
+            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20251001.rodit.org, got {}", 
                 new_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>"));
             env::log_str(&error_msg);
             env::panic_str(&error_msg);
@@ -509,8 +509,8 @@ impl Contract {
         from_index: Option<U128>,
         limit: Option<u64>,
     ) -> Vec<JsonToken> {
-        let tokens_vec_opt = self.tokens_per_owner.get(&account_id);
-        let tokens = if let Some(tokens_vec) = tokens_vec_opt {
+        let tokens_vec = self.tokens_per_owner.get(&account_id);
+        let tokens = if let Some(tokens_vec) = tokens_vec {
             tokens_vec
                 .iter()
                 .skip(u128::from(from_index.unwrap_or(U128(0))) as usize)
@@ -532,8 +532,8 @@ impl Contract {
     }
 
     pub fn rodit_supply_for_owner(&self, account_id: AccountId) -> U128 {
-        if let Some(tokens) = self.tokens_per_owner.get(&account_id) {
-            U128(u128::try_from(tokens.len()).unwrap_or_else(|_| env::panic_str("Owner supply conversion overflow")))
+        if let Some(tokens_vec) = self.tokens_per_owner.get(&account_id) {
+            U128(u128::try_from(tokens_vec.len()).unwrap_or_else(|_| env::panic_str("Owner supply conversion overflow")))
         } else {
             U128(0)
         }
@@ -570,7 +570,7 @@ impl Contract {
 
     /// Converts a base64url encoded string to standard base64 encoding.
     /// Padding ("=") is added as required to reach a length that is a multiple of 4.
-    pub fn base64url_to_base64(input: &str) -> String {
+    fn base64url_to_base64(input: &str) -> String {
         let mut s = input.replace('-', "+").replace('_', "/");
         let padding = (4 - s.len() % 4) % 4;
         if padding > 0 {
@@ -753,14 +753,17 @@ pub fn rodit_tokens_filtered(
 }
 
 fn internal_add_token_to_owner(&mut self, account_id: &AccountId, token_id: &String) {
-    let mut tokens_vec = self.tokens_per_owner.get(account_id).unwrap_or_else(|| {
-        Vector::new(
-            format!("tokens_per_owner{}", account_id)
-                .as_bytes()
-                .to_vec(),
-        )
-    });
-    tokens_vec.push(token_id);
+    let mut tokens_vec = self
+        .tokens_per_owner
+        .get(account_id)
+        .unwrap_or_else(|| Vector::new(format!("tokens_per_owner{}", account_id).as_bytes().to_vec()));
+
+    // Prevent duplicates now that we're using Vector
+    let exists = tokens_vec.iter().any(|t| t.as_str() == token_id.as_str());
+    if !exists {
+        tokens_vec.push(token_id);
+    }
+
     self.tokens_per_owner.insert(account_id, &tokens_vec);
 }
 
@@ -770,20 +773,14 @@ fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id:
         .get(account_id)
         .unwrap_or_else(|| env::panic_str("Token should be owned by the sender"));
 
-    // Find index of the token to remove
-    let mut index_to_remove: Option<u64> = None;
-    for (idx, id) in tokens_vec.iter().enumerate() {
-        if &id == token_id {
-            index_to_remove = Some(idx as u64);
-            break;
-        }
-    }
+    // Find the index of the token to remove
+    let pos = tokens_vec
+        .iter()
+        .position(|t| t.as_str() == token_id.as_str())
+        .unwrap_or_else(|| env::panic_str("Token should be owned by the sender"));
 
-    if let Some(idx) = index_to_remove {
-        tokens_vec.swap_remove(idx);
-    } else {
-        env::panic_str("Token ID not found for owner");
-    }
+    // Remove using swap_remove for O(1)
+    tokens_vec.swap_remove(pos as u64);
 
     if tokens_vec.is_empty() {
         self.tokens_per_owner.remove(account_id);

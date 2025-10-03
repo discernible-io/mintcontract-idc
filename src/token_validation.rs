@@ -1,30 +1,92 @@
-// No imports from near_sdk needed here
+//! Token metadata validation module
+//! 
+//! This module provides comprehensive validation for RODIT token metadata fields.
+//! It ensures that all token metadata conforms to expected formats before minting.
+
 use regex::Regex;
 use lazy_static::lazy_static;
 use serde_json;
 
 // Regular expressions for validation
 lazy_static! {
+    /// Validates date format: YYYY-MM-DD
     static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    
+    /// Validates HTTPS URLs with basic structure checking
     static ref URL_REGEX: Regex = Regex::new(r"^https://[^\s/$.?#].[^\s]*$").unwrap();
+    
+    /// Validates CIDR notation (e.g., 192.168.1.0/24)
     static ref CIDR_REGEX: Regex = Regex::new(r"^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$").unwrap();
+    
+    /// Validates domain names
+    static ref DOMAIN_REGEX: Regex = Regex::new(r"^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$").unwrap();
 }
 
 /// Validates a date string format (YYYY-MM-DD)
-/// Equivalent to part of validateAndSetDate in utils.js
+/// 
+/// # Arguments
+/// * `date_str` - The date string to validate
+/// 
+/// # Returns
+/// * `bool` - true if the date is in valid YYYY-MM-DD format
+/// 
+/// # Examples
+/// ```
+/// assert!(validate_date_format("2025-12-31"));
+/// assert!(!validate_date_format("2025/12/31"));
+/// ```
 pub fn validate_date_format(date_str: &str) -> bool {
     if date_str.is_empty() {
         return false;
     }
     
-    DATE_REGEX.is_match(date_str)
+    if !DATE_REGEX.is_match(date_str) {
+        return false;
+    }
+    
+    // Additional validation: check if date components are in valid ranges
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+    
+    if let (Ok(year), Ok(month), Ok(day)) = (
+        parts[0].parse::<u32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>()
+    ) {
+        // Basic range validation
+        year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31
+    } else {
+        false
+    }
 }
 
 /// Validates a URL format
-/// Equivalent to part of validateAndSetUrl in utils.js
+/// 
+/// # Arguments
+/// * `url` - The URL string to validate
+/// 
+/// # Returns
+/// * `bool` - true if the URL is valid HTTPS format or empty
+/// 
+/// # Security Notes
+/// - Only HTTPS URLs are allowed for security
+/// - Empty URLs are considered valid (optional field)
+/// - URL must not contain whitespace or control characters
 pub fn validate_url(url: &str) -> bool {
     if url.is_empty() {
         return true; // Empty URL is considered valid (optional field)
+    }
+    
+    // Check for whitespace or control characters
+    if url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return false;
+    }
+    
+    // Must be HTTPS
+    if !url.starts_with("https://") {
+        return false;
     }
     
     // Basic URL validation using regex
@@ -32,17 +94,65 @@ pub fn validate_url(url: &str) -> bool {
         return false;
     }
     
-    // Additional validation could be added here if needed
-    true
+    // Extract and validate domain
+    if let Some(domain_start) = url.find("://") {
+        let after_protocol = &url[domain_start + 3..];
+        if let Some(domain_end) = after_protocol.find('/').or_else(|| Some(after_protocol.len())) {
+            let domain = &after_protocol[..domain_end];
+            // Remove port if present
+            let domain_without_port = domain.split(':').next().unwrap_or(domain);
+            return DOMAIN_REGEX.is_match(domain_without_port) || domain_without_port == "localhost";
+        }
+    }
+    
+    false
 }
 
 /// Validates a CIDR notation string
-/// No direct equivalent in utils.js, but used in token metadata validation
+/// 
+/// # Arguments
+/// * `cidr` - The CIDR notation string to validate (e.g., "192.168.1.0/24")
+/// 
+/// # Returns
+/// * `bool` - true if the CIDR notation is valid or empty
+/// 
+/// # Examples
+/// ```
+/// assert!(validate_cidr("192.168.1.0/24"));
+/// assert!(validate_cidr("10.0.0.0/8"));
+/// assert!(!validate_cidr("256.1.1.1/24"));
+/// ```
 pub fn validate_cidr(cidr: &str) -> bool {
     if cidr.is_empty() {
         return true; // Empty CIDR is considered valid (optional field)
     }
-    CIDR_REGEX.is_match(cidr)
+    
+    if !CIDR_REGEX.is_match(cidr) {
+        return false;
+    }
+    
+    // Additional validation: check if IP octets are in valid range (0-255)
+    let parts: Vec<&str> = cidr.split('/').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    
+    let ip_parts: Vec<&str> = parts[0].split('.').collect();
+    if ip_parts.len() != 4 {
+        return false;
+    }
+    
+    for octet in ip_parts {
+        if let Ok(num) = octet.parse::<u32>() {
+            if num > 255 {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    
+    true
 }
 
 /// Helper function to validate escaped JSON strings
@@ -89,14 +199,55 @@ pub fn validate_iso3166(country_list_json: &str) -> bool {
 }
 
 /// Validates that a string can be parsed as a number
-/// Similar to numeric validation in utils.js
+/// 
+/// # Arguments
+/// * `num_str` - The numeric string to validate
+/// 
+/// # Returns
+/// * `bool` - true if the string can be parsed as a valid u64
+/// 
+/// # Security Notes
+/// - Only non-negative integers are allowed
+/// - Maximum value is u64::MAX
 pub fn validate_numeric_string(num_str: &str) -> bool {
+    if num_str.is_empty() {
+        return false;
+    }
+    
+    // Check for leading zeros (except "0" itself)
+    if num_str.len() > 1 && num_str.starts_with('0') {
+        return false;
+    }
+    
     num_str.parse::<u64>().is_ok()
 }
 
-/// Validates all token metadata fields
-/// This function combines the validation logic similar to the various validateAndSet* functions in utils.js
-/// but adapted for the Rust smart contract environment
+/// Validates all token metadata fields comprehensively
+/// 
+/// This function performs thorough validation of all RODIT token metadata fields
+/// before allowing a token to be minted. It ensures data integrity and security.
+/// 
+/// # Arguments
+/// * `openapijson_url` - URL to the OpenAPI JSON specification
+/// * `not_after` - Expiration date in YYYY-MM-DD format
+/// * `not_before` - Start date in YYYY-MM-DD format
+/// * `max_requests` - Maximum number of requests allowed
+/// * `maxrq_window` - Time window for max requests (in seconds)
+/// * `webhook_url` - URL for webhook callbacks
+/// * `webhook_cidr` - CIDR notation for webhook source IP restriction
+/// * `allowed_cidr` - CIDR notation for allowed client IPs
+/// * `allowed_iso3166list` - ISO 3166 country code list or JSON
+/// * `jwt_duration` - JWT token duration in seconds
+/// * `permissioned_routes` - JSON string of permissioned API routes
+/// 
+/// # Returns
+/// * `Result<(), String>` - Ok(()) if all validations pass, Err with detailed message otherwise
+/// 
+/// # Security Considerations
+/// - All URLs must be HTTPS
+/// - Dates must be in valid ranges
+/// - Numeric values must be positive integers
+/// - CIDR notations must be properly formatted
 pub fn validate_token_metadata(
     openapijson_url: &str,
     not_after: &str,

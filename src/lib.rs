@@ -1,9 +1,41 @@
+//! # RODIT Smart Contract
+//! 
+//! This is the main smart contract for the RODIT (Rights-Oriented Digital Identity Token) system.
+//! It manages the creation, transfer, and lifecycle of API access tokens on the NEAR blockchain.
+//! 
+//! ## Features
+//! 
+//! - **Token Minting**: Create new API access tokens with comprehensive metadata
+//! - **Token Transfer**: Transfer tokens between accounts
+//! - **Token Burning**: Destroy tokens and refund storage deposits
+//! - **Fee Management**: Configurable fees for initialization, contract operations, and storage
+//! - **Rate Limiting**: Prevent spam attacks with per-account minting limits
+//! - **Storage Deposits**: Track and manage storage costs per account
+//! - **Signature Verification**: Ed25519 signature verification for fee authorization
+//! - **Contract Upgrades**: Time-delayed upgrade mechanism for security
+//! - **Access Control**: Owner-only functions for contract management
+//! 
+//! ## Security Features
+//! 
+//! - Checks-effects-interactions pattern to prevent reentrancy
+//! - Arithmetic overflow protection with checked operations
+//! - Rate limiting to prevent spam attacks
+//! - Time-delayed contract upgrades (24-hour default)
+//! - Comprehensive input validation
+//! - Conditional debug logging to reduce gas costs in production
+//! 
+//! ## Version
+//! 
+//! Contract version: RODIT-near.org-20251001
+
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector, Vector};
+use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
 use near_sdk::json_types::U128;
 use serde_json::json;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, require};
+use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise, NearToken, require};
+#[cfg(not(target_arch = "wasm32"))]
+use schemars::JsonSchema;
 extern crate base64;
 use ed25519_dalek::{Verifier, PublicKey, Signature};
 
@@ -18,63 +50,55 @@ use upgrade::ContractUpgrade;
 
 pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20251001";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
-pub const CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
-pub const STORAGE_COST_PER_BYTE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR per byte (NEAR standard)
+pub const CONTRACT_NAME: &str = "20251001.rodit.org";
+
+// Default fee values - can be overridden by contract owner
+pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
+pub const DEFAULT_CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
+pub const DEFAULT_STORAGE_COST_PER_BYTE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR per byte (NEAR standard)
+
+// Fee bounds for safety
+pub const MIN_INITIALIZE_FEE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR
+pub const MAX_INITIALIZE_FEE: u128 = 1_000_000_000_000_000_000_000_000; // 1 NEAR
+pub const MIN_CONTRACT_FEE_PERCENTAGE: u128 = 0; // 0%
+pub const MAX_CONTRACT_FEE_PERCENTAGE: u128 = 10; // 10%
+pub const MIN_STORAGE_COST_PER_BYTE: u128 = 1_000_000_000_000_000_000; // 0.000001 NEAR
+pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
+
+// Rate limiting constants
+pub const RATE_LIMIT_WINDOW: u64 = 3600; // 1 hour in seconds
+pub const MAX_MINTS_PER_WINDOW: u64 = 10; // Maximum 10 mints per hour per account
 
 /// DID:wba JSON-LD context describing the RODiT token vocabulary.
 /// This is provided as a constant string so it can be returned via a view
 /// method without increasing on-chain storage requirements.
 pub const DID_WBA_JSON_LD: &str = r#"{
-  \"@context\": {
-    /* ---------------------------------------------------------
-       Core JSON-LD keywords
-    --------------------------------------------------------- */
-    \"id\": \"@id\",
-    \"type\": \"@type\",
-
-    /* ---------------------------------------------------------
-       Default namespace prefix for all RODiT terms
-       Change to your own domain & keep the trailing #
-    --------------------------------------------------------- */
-    \"rodit\": \"https://rodit.org/ns/rodit#\",
-
-    /* ---------------------------------------------------------
-       Token-level properties
-    --------------------------------------------------------- */
-    \"token_id\":            \"rodit:token_id\",
-    \"allowed_cidr\":        \"rodit:allowed_cidr\",
-    \"allowed_iso3166list\": \"rodit:allowed_iso3166list\",
-    \"jwt_duration\":        { \"@id\": \"rodit:jwt_duration\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
-    \"max_requests\":        { \"@id\": \"rodit:max_requests\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
-    \"maxrq_window\":        { \"@id\": \"rodit:maxrq_window\", \"@type\": \"http://www.w3.org/2001/XMLSchema#integer\" },
-    \"not_after\":           { \"@id\": \"rodit:not_after\",  \"@type\": \"http://www.w3.org/2001/XMLSchema#date\" },
-    \"not_before\":          { \"@id\": \"rodit:not_before\", \"@type\": \"http://www.w3.org/2001/XMLSchema#date\" },
-
-    /* ---------------------------------------------------------
-       Service descriptors & endpoints
-    --------------------------------------------------------- */
-    \"openapijson_url\":           { \"@id\": \"rodit:openapijson_url\",           \"@type\": \"@id\" },
-    \"subjectuniqueidentifier_url\": { \"@id\": \"rodit:subjectuniqueidentifier_url\", \"@type\": \"@id\" },
-    \"webhook_url\":               { \"@id\": \"rodit:webhook_url\",              \"@type\": \"@id\" },
-    \"webhook_cidr\":              \"rodit:webhook_cidr\",
-
-    /* ---------------------------------------------------------
-       Permission model & signatures
-    --------------------------------------------------------- */
-    \"permissioned_routes\":       \"rodit:permissioned_routes\",
-    \"serviceprovider_id\":        \"rodit:serviceprovider_id\",
-    \"controller\":            \"rodit:serviceprovider_id\",
-    \"serviceprovider_signature\": \"rodit:serviceprovider_signature\",
-    \"userselected_dn\":           \"rodit:userselected_dn\",
-
-    /* ---------------------------------------------------------
-       OPTIONAL: link to any DID or key that signs this token
-    --------------------------------------------------------- */
-    \"verificationMethod\":        { \"@id\": \"rodit:verificationMethod\", \"@type\": \"@id\" }
+  "@context": {
+    "id": "@id",
+    "type": "@type",
+    "rodit": "https://rodit.org/ns/rodit#",
+    "token_id": "rodit:token_id",
+    "allowed_cidr": "rodit:allowed_cidr",
+    "allowed_iso3166list": "rodit:allowed_iso3166list",
+    "jwt_duration": { "@id": "rodit:jwt_duration", "@type": "http://www.w3.org/2001/XMLSchema#integer" },
+    "max_requests": { "@id": "rodit:max_requests", "@type": "http://www.w3.org/2001/XMLSchema#integer" },
+    "maxrq_window": { "@id": "rodit:maxrq_window", "@type": "http://www.w3.org/2001/XMLSchema#integer" },
+    "not_after": { "@id": "rodit:not_after", "@type": "http://www.w3.org/2001/XMLSchema#date" },
+    "not_before": { "@id": "rodit:not_before", "@type": "http://www.w3.org/2001/XMLSchema#date" },
+    "openapijson_url": { "@id": "rodit:openapijson_url", "@type": "@id" },
+    "subjectuniqueidentifier_url": { "@id": "rodit:subjectuniqueidentifier_url", "@type": "@id" },
+    "webhook_url": { "@id": "rodit:webhook_url", "@type": "@id" },
+    "webhook_cidr": "rodit:webhook_cidr",
+    "permissioned_routes": "rodit:permissioned_routes",
+    "serviceprovider_id": "rodit:serviceprovider_id",
+    "controller": "rodit:serviceprovider_id",
+    "serviceprovider_signature": "rodit:serviceprovider_signature",
+    "userselected_dn": "rodit:userselected_dn",
+    "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" }
   }
 }"#;
 
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(crate = "near_sdk::serde")]
 pub enum ContractStatus {
@@ -83,6 +107,7 @@ pub enum ContractStatus {
     Upgrading
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct RoditContractMetadata {
@@ -94,6 +119,7 @@ pub struct RoditContractMetadata {
     pub did_wba_jsonld: String,
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct TokenMetadata {
@@ -119,6 +145,7 @@ pub struct Token {
     pub owner_id: AccountId,
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct JsonToken {
@@ -127,12 +154,22 @@ pub struct JsonToken {
     pub metadata: TokenMetadata,
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ContractStats {
     pub created_at: u64,
     pub last_updated_at: u64,
     pub total_supply: u64,
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), derive(JsonSchema))]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
+pub struct ContractFees {
+    pub initialize_fee: u128,
+    pub contract_fee_percentage: u128,
+    pub storage_cost_per_byte: u128,
 }
 
 #[near_bindgen]
@@ -147,7 +184,8 @@ pub struct Contract {
     pub stats: ContractStats,
     pub authorized_signers: UnorderedSet<Vec<u8>>,
     pub upgrade_config: ContractUpgrade,
-    pub storage_deposits: LookupMap<AccountId, u128>,
+    pub fees: ContractFees,
+    pub mint_rate_limits: LookupMap<AccountId, Vec<u64>>, // Track mint timestamps per account
 }
 
 #[near_bindgen]
@@ -160,7 +198,7 @@ impl Contract {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
-            issueruniqueidentifier_url: Some("20251001.rodit.org".to_string()),
+            issueruniqueidentifier_url: Some(CONTRACT_NAME.to_string()),
             did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
         });
 
@@ -180,7 +218,12 @@ impl Contract {
             },
             authorized_signers: UnorderedSet::new(b"authorized_signers".to_vec()),
             upgrade_config: ContractUpgrade::default(),
-            storage_deposits: LookupMap::new(b"storage_deposits".to_vec()),
+            fees: ContractFees {
+                initialize_fee: DEFAULT_INITIALIZE_FEE,
+                contract_fee_percentage: DEFAULT_CONTRACT_FEE_PERCENTAGE,
+                storage_cost_per_byte: DEFAULT_STORAGE_COST_PER_BYTE,
+            },
+            mint_rate_limits: LookupMap::new(b"mint_rate_limits".to_vec()),
         }
     }
     
@@ -213,7 +256,7 @@ impl Contract {
             old_contract.metadata.versionnumber, RODIT_METADATA_SPEC));
         env::log_str(&format!("Upgrading issuer URL from {} to 20251001.rodit.org", 
             old_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>")));
-        env::log_str(&format!("Upgrading delay from {} to 30 seconds", 
+        env::log_str(&format!("Upgrading delay from {} to 86400 seconds (24 hours)", 
             old_contract.upgrade_config.upgrade_delay));
         
         // Create a new contract instance with updated metadata and config
@@ -228,7 +271,7 @@ impl Contract {
                 versionnumber: RODIT_METADATA_SPEC.to_string(),
                 name: old_contract.metadata.name,
                 symbol: old_contract.metadata.symbol,
-                issueruniqueidentifier_url: Some("20251001.rodit.org".to_string()),
+                issueruniqueidentifier_url: Some(CONTRACT_NAME.to_string()),
                 did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
             },
             
@@ -238,12 +281,13 @@ impl Contract {
             
             // Update upgrade config with new delay
             upgrade_config: upgrade::ContractUpgrade {
-                upgrade_delay: 30, // Use the new 30-second delay
+                upgrade_delay: 86400, // Use the new 24-hour delay for production safety
                 upgrade_proposed_at: old_contract.upgrade_config.upgrade_proposed_at,
                 upgrade_proposed_by: old_contract.upgrade_config.upgrade_proposed_by,
             },
             
-            storage_deposits: old_contract.storage_deposits,
+            fees: old_contract.fees,
+            mint_rate_limits: old_contract.mint_rate_limits,
         };
         
         // Verify the upgrade was successful by checking critical values
@@ -254,15 +298,15 @@ impl Contract {
             env::panic_str(&error_msg);
         }
         
-        if new_contract.metadata.issueruniqueidentifier_url != Some("20251001.rodit.org".to_string()) {
-            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected 20251001.rodit.org, got {}", 
+        if new_contract.metadata.issueruniqueidentifier_url != Some(CONTRACT_NAME.to_string()) {
+            let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected {}, got {}", 
                 new_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>"));
             env::log_str(&error_msg);
             env::panic_str(&error_msg);
         }
         
-        if new_contract.upgrade_config.upgrade_delay != 30 {
-            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected 30, got {}", 
+        if new_contract.upgrade_config.upgrade_delay != 86400 {
+            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected 86400, got {}", 
                 new_contract.upgrade_config.upgrade_delay);
             env::log_str(&error_msg);
             env::panic_str(&error_msg);
@@ -283,6 +327,9 @@ impl Contract {
         fee_data_json: String, // Added parameter for fee data JSON string
     ) {
         self.assert_contract_active();
+        
+        // Check rate limiting
+        self.check_and_update_rate_limit(&owneraccount_id);
         
         // Validate token metadata fields
         let validation_result = validate_token_metadata(
@@ -306,11 +353,39 @@ impl Contract {
         
         // Use the provided fee_data_json directly instead of constructing it
         // This ensures the exact same JSON string is used for verification as was used in the frontend
+        #[cfg(debug_assertions)]
         env::log_str(&format!("VERIFICATION: Using provided fee_data_json: {}", fee_data_json));
         
-        // Parse the JSON to extract the mintingfee
+        // Parse the JSON to extract and verify all fields
         let fee_data: serde_json::Value = serde_json::from_str(&fee_data_json)
             .unwrap_or_else(|e| panic!("Failed to parse fee data JSON: {}", e));
+        
+        // SECURITY: Bind signature to all function parameters to prevent replay attacks
+        // Verify token_id matches
+        let fee_token_id = fee_data.get("token_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| panic!("token_id not found or not a string in fee data"));
+        require!(
+            fee_token_id == token_id,
+            format!("Token ID mismatch: signature is for '{}' but minting '{}'", fee_token_id, token_id)
+        );
+        
+        // Verify mintingfee_account matches
+        let fee_minting_account = fee_data.get("mintingfeeaccount")
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| panic!("mintingfeeaccount not found or not a string in fee data"));
+        require!(
+            fee_minting_account == mintingfee_account.as_str(),
+            format!("Minting fee account mismatch: signature is for '{}' but using '{}'", fee_minting_account, mintingfee_account)
+        );
+        
+        // Verify owner account matches (if present in fee_data)
+        if let Some(fee_owner) = fee_data.get("owneraccount_id").and_then(|v| v.as_str()) {
+            require!(
+                fee_owner == owneraccount_id.as_str(),
+                format!("Owner account mismatch: signature is for '{}' but using '{}'", fee_owner, owneraccount_id)
+            );
+        }
         
         // Extract the mintingfee value and convert to yoctoNEAR
         let mintingfee_str = fee_data.get("mintingfee")
@@ -328,6 +403,7 @@ impl Contract {
         let attached_deposit = env::attached_deposit();
         // Convert attached_deposit to u128 for comparison
         let deposit_yocto = attached_deposit.as_yoctonear();
+        #[cfg(debug_assertions)]
         env::log_str(&format!("VERIFICATION: Deposit: {}, Fee in JSON: {}", deposit_yocto, mintingfee_yocto));
         
         require!(
@@ -374,7 +450,14 @@ impl Contract {
             });
         
         // Handle fees and storage based on actual usage using the new storage management system
-        if let Err(err) = handle_account_fees_and_storage(storage_used, &owneraccount_id, &mintingfee_account) {
+        if let Err(err) = handle_account_fees_and_storage(
+            storage_used, 
+            &owneraccount_id, 
+            &mintingfee_account,
+            self.fees.initialize_fee,
+            self.fees.contract_fee_percentage,
+            self.fees.storage_cost_per_byte
+        ) {
             require!(false, err);
         }
         
@@ -428,6 +511,12 @@ impl Contract {
         memo: Option<String>,
     ) {
         self.assert_contract_active();
+        
+        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
         
         let sender_id = env::predecessor_account_id();
         let token = self.tokens_by_id.get(&token_id).unwrap_or_else(|| env::panic_str("No token found"));
@@ -554,8 +643,12 @@ impl Contract {
     /// The `@context` is the embedded JSON-LD context, `id` is the contract account,
     /// and `type` is set to `rodit:Contract`.
     pub fn rodit_metadata_jsonld(&self) -> String {
+        // Parse the JSON-LD context string into a Value for proper nesting
+        let context: serde_json::Value = serde_json::from_str(&self.metadata.did_wba_jsonld)
+            .unwrap_or_else(|_| json!({}));
+        
         let mut jsonld = json!({
-            "@context": self.metadata.did_wba_jsonld,
+            "@context": context.get("@context").unwrap_or(&json!({})),
             "id": env::current_account_id(),
             "type": "rodit:Contract",
             "versionnumber": self.metadata.versionnumber,
@@ -570,6 +663,7 @@ impl Contract {
 
     /// Converts a base64url encoded string to standard base64 encoding.
     /// Padding ("=") is added as required to reach a length that is a multiple of 4.
+    #[allow(dead_code)]
     fn base64url_to_base64(input: &str) -> String {
         let mut s = input.replace('-', "+").replace('_', "/");
         let padding = (4 - s.len() % 4) % 4;
@@ -586,18 +680,6 @@ impl Contract {
     
     pub fn assert_owner(&self) {
     require!(env::predecessor_account_id() == self.owner_id, "Only the contract owner can call this function");
-}
-
-pub fn pause_contract(&mut self) {
-    self.assert_owner();
-    self.status = ContractStatus::Paused;
-    events::emit_contract_status_change("Paused");
-}
-
-pub fn resume_contract(&mut self) {
-    self.assert_owner();
-    self.status = ContractStatus::Active;
-    events::emit_contract_status_change("Active");
 }
 
 // New upgrade-related functions
@@ -647,6 +729,12 @@ pub fn get_upgrade_status(&self) -> Option<u64> {
 pub fn recover_token(&mut self, token_id: String, destination_account: AccountId) {
     self.assert_owner();
     self.assert_contract_active();
+    
+    // Require exactly 1 yocto to prevent misuse with function-call access keys
+    require!(
+        env::attached_deposit().as_yoctonear() == 1,
+        "Requires attached deposit of exactly 1 yoctoNEAR"
+    );
         
     let token = self.tokens_by_id.get(&token_id).expect("No token found");
     let previous_owner = token.owner_id.clone();
@@ -671,8 +759,15 @@ pub fn recover_token(&mut self, token_id: String, destination_account: AccountId
 }
 
 // Token management functions
+#[payable]
 pub fn rodit_burn(&mut self, token_id: String) {
     self.assert_contract_active();
+    
+    // Require exactly 1 yocto to prevent misuse with function-call access keys
+    require!(
+        env::attached_deposit().as_yoctonear() == 1,
+        "Requires attached deposit of exactly 1 yoctoNEAR"
+    );
         
     let owner_id = env::predecessor_account_id();
     let token = self.tokens_by_id.get(&token_id).expect("No token found");
@@ -684,11 +779,25 @@ pub fn rodit_burn(&mut self, token_id: String) {
 
     // Implement checks-effects-interactions pattern
     // 1. Checks (already done above)
+    
+    // Track storage before removal for refund calculation
+    let storage_before = env::storage_usage();
         
     // 2. Effects: Update state before external calls
     self.internal_remove_token_from_owner(&owner_id, &token_id);
     self.tokens_by_id.remove(&token_id);
     self.token_metadata_by_id.remove(&token_id);
+    
+    // Calculate storage freed and refund directly to user
+    let storage_after = env::storage_usage();
+    let storage_freed = storage_before.saturating_sub(storage_after);
+    if storage_freed > 0 {
+        let storage_refund = (storage_freed as u128) * self.fees.storage_cost_per_byte;
+        if storage_refund > 0 {
+            Promise::new(owner_id.clone()).transfer(NearToken::from_yoctonear(storage_refund));
+            env::log_str(&format!("Storage refund: {} yoctoNEAR refunded to {}", storage_refund, owner_id));
+        }
+    }
         
     // Update contract stats using checked arithmetic
     self.stats.total_supply = self.stats.total_supply.checked_sub(1).unwrap_or_else(|| env::panic_str("Total supply underflow"));
@@ -790,8 +899,15 @@ fn internal_remove_token_from_owner(&mut self, account_id: &AccountId, token_id:
 }
 
 // Key management functions for fee signature verification
+#[payable]
 pub fn add_authorized_signer(&mut self, public_key_hex: String) {
     self.assert_owner();
+    
+    // Require exactly 1 yocto to prevent misuse with function-call access keys
+    require!(
+        env::attached_deposit().as_yoctonear() == 1,
+        "Requires attached deposit of exactly 1 yoctoNEAR"
+    );
     
     // Trim any whitespace that might have been accidentally included
     let trimmed_key = public_key_hex.trim().to_string();
@@ -826,18 +942,160 @@ pub fn add_authorized_signer(&mut self, public_key_hex: String) {
 }
 
 /// Pauses the contract, preventing certain operations
-pub fn pause(&mut self) {
+#[payable]
+pub fn pause_contract(&mut self) {
     self.assert_owner();
+    
+    // Require exactly 1 yocto to prevent misuse with function-call access keys
+    require!(
+        env::attached_deposit().as_yoctonear() == 1,
+        "Requires attached deposit of exactly 1 yoctoNEAR"
+    );
+    
     self.status = ContractStatus::Paused;
+    events::emit_contract_status_change("Paused");
 }
 
 /// Resumes the contract after being paused
-pub fn resume(&mut self) {
+#[payable]
+pub fn resume_contract(&mut self) {
     self.assert_owner();
+    
+    // Require exactly 1 yocto to prevent misuse with function-call access keys
+    require!(
+        env::attached_deposit().as_yoctonear() == 1,
+        "Requires attached deposit of exactly 1 yoctoNEAR"
+    );
+    
     self.status = ContractStatus::Active;
+    events::emit_contract_status_change("Active");
 }
+    // Fee management functions
+    /// Updates the initialization fee with bounds checking
+    #[payable]
+    pub fn set_initialize_fee(&mut self, new_fee: u128) {
+        self.assert_owner();
+        
+        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
+        require!(
+            new_fee >= MIN_INITIALIZE_FEE && new_fee <= MAX_INITIALIZE_FEE,
+            format!("Initialize fee must be between {} and {} yoctoNEAR", MIN_INITIALIZE_FEE, MAX_INITIALIZE_FEE)
+        );
+        self.fees.initialize_fee = new_fee;
+        env::log_str(&format!("Initialize fee updated to {} yoctoNEAR", new_fee));
+    }
+
+    /// Updates the contract fee percentage with bounds checking
+    #[payable]
+    pub fn set_contract_fee_percentage(&mut self, new_percentage: u128) {
+        self.assert_owner();
+        
+        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
+        require!(
+            new_percentage >= MIN_CONTRACT_FEE_PERCENTAGE && new_percentage <= MAX_CONTRACT_FEE_PERCENTAGE,
+            format!("Contract fee percentage must be between {}% and {}%", MIN_CONTRACT_FEE_PERCENTAGE, MAX_CONTRACT_FEE_PERCENTAGE)
+        );
+        self.fees.contract_fee_percentage = new_percentage;
+        env::log_str(&format!("Contract fee percentage updated to {}%", new_percentage));
+    }
+
+    /// Updates the storage cost per byte with bounds checking
+    #[payable]
+    pub fn set_storage_cost_per_byte(&mut self, new_cost: u128) {
+        self.assert_owner();
+        
+        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
+        require!(
+            new_cost >= MIN_STORAGE_COST_PER_BYTE && new_cost <= MAX_STORAGE_COST_PER_BYTE,
+            format!("Storage cost per byte must be between {} and {} yoctoNEAR", MIN_STORAGE_COST_PER_BYTE, MAX_STORAGE_COST_PER_BYTE)
+        );
+        self.fees.storage_cost_per_byte = new_cost;
+        env::log_str(&format!("Storage cost per byte updated to {} yoctoNEAR", new_cost));
+    }
+
+    /// View function to get current fee configuration
+    pub fn get_fees(&self) -> ContractFees {
+        self.fees.clone()
+    }
+
+    /// View function to get comprehensive contract configuration
+    /// Helps prevent misconfiguration issues (e.g., adding signers to wrong contract)
+    pub fn get_config(&self) -> serde_json::Value {
+        json!({
+            "contract_account": env::current_account_id(),
+            "owner": self.owner_id,
+            "status": format!("{:?}", self.status),
+            "version": self.metadata.versionnumber,
+            "authorized_signers_count": self.authorized_signers.len(),
+            "fees": {
+                "initialize_fee": self.fees.initialize_fee.to_string(),
+                "contract_fee_percentage": self.fees.contract_fee_percentage,
+                "storage_cost_per_byte": self.fees.storage_cost_per_byte.to_string()
+            }
+        })
+    }
+
+    // Rate limiting functions
+    /// Checks if the account has exceeded the rate limit and updates the timestamp vector
+    /// SECURITY FIX: Using Vec instead of Vector to avoid storage leak from dynamic prefixes
+    fn check_and_update_rate_limit(&mut self, account_id: &AccountId) {
+        let current_time = env::block_timestamp() / 1_000_000_000; // Convert to seconds
+        
+        // Get or create the timestamp vector for this account
+        let mut timestamps = self.mint_rate_limits.get(account_id).unwrap_or_else(Vec::new);
+        
+        // Remove timestamps outside the rate limit window
+        let cutoff_time = current_time.saturating_sub(RATE_LIMIT_WINDOW);
+        timestamps.retain(|&timestamp| timestamp > cutoff_time);
+        
+        // Check if rate limit is exceeded
+        require!(
+            timestamps.len() < MAX_MINTS_PER_WINDOW as usize,
+            format!("Rate limit exceeded: maximum {} mints per {} seconds", MAX_MINTS_PER_WINDOW, RATE_LIMIT_WINDOW)
+        );
+        
+        // Add current timestamp
+        timestamps.push(current_time);
+        
+        // Update the stored timestamps (replaces entire Vec in place)
+        self.mint_rate_limits.insert(account_id, &timestamps);
+    }
+    
+    /// View function to check remaining mints for an account in the current window
+    pub fn get_remaining_mints(&self, account_id: AccountId) -> u64 {
+        let current_time = env::block_timestamp() / 1_000_000_000;
+        let cutoff_time = current_time.saturating_sub(RATE_LIMIT_WINDOW);
+        
+        if let Some(timestamps) = self.mint_rate_limits.get(&account_id) {
+            let valid_count = timestamps.iter().filter(|&&ts| ts > cutoff_time).count() as u64;
+            MAX_MINTS_PER_WINDOW.saturating_sub(valid_count)
+        } else {
+            MAX_MINTS_PER_WINDOW
+        }
+    }
+
+
+    #[payable]
     pub fn remove_authorized_signer(&mut self, public_key_hex: String) {
         self.assert_owner();
+        
+        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
         
         // Validate the hex string format (64 characters, all lowercase hex)
         require!(
@@ -909,21 +1167,29 @@ pub fn resume(&mut self) {
     #[handle_result]
     pub fn verify_fee_signature(&self, message: Vec<u8>, fee_signature_base64url: String) -> Result<Result<(), String>, near_sdk::Abort> {
         // For debugging purposes, log the input parameters
-        env::log_str(&format!("DEBUG: Message length: {}", message.len()));
-        env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
-        env::log_str(&format!("DEBUG: Signature base64url: {}", fee_signature_base64url));
+        #[cfg(debug_assertions)]
+        {
+            env::log_str(&format!("DEBUG: Message length: {}", message.len()));
+            env::log_str(&format!("DEBUG: First few bytes of message: {:?}", &message.iter().take(10).collect::<Vec<_>>()));
+            env::log_str(&format!("DEBUG: Signature base64url: {}", fee_signature_base64url));
+        }
         
         // Decode base64url signature directly using URL_SAFE config
+        #[cfg(debug_assertions)]
         env::log_str("VERIFICATION: Decoding base64url signature directly");
         
         // Decode signature with proper error handling
         let signature_bytes = match base64::decode_config(&fee_signature_base64url, base64::URL_SAFE) {
             Ok(bytes) => {
-                env::log_str(&format!("DEBUG: Signature bytes length: {}", bytes.len()));
-                env::log_str(&format!("DEBUG: First few bytes of signature: {:?}", &bytes.iter().take(10).collect::<Vec<_>>()));
+                #[cfg(debug_assertions)]
+                {
+                    env::log_str(&format!("DEBUG: Signature bytes length: {}", bytes.len()));
+                    env::log_str(&format!("DEBUG: First few bytes of signature: {:?}", &bytes.iter().take(10).collect::<Vec<_>>()));
+                }
                 bytes
             },
             Err(e) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("DEBUG: Error decoding base64: {:?}", e));
                 return Ok(Err(format!("Invalid base64 encoding for signature: {}", e)));
             }
@@ -931,29 +1197,35 @@ pub fn resume(&mut self) {
         
         // Validate signature length to prevent potential vulnerabilities
         if signature_bytes.len() != 64 {
+            #[cfg(debug_assertions)]
             env::log_str(&format!("DEBUG: Invalid signature length: {}, expected 64", signature_bytes.len()));
             return Ok(Err(format!("Invalid signature length: expected 64 bytes, got {}", signature_bytes.len())));
         }
         
         let signature = match Signature::from_bytes(&signature_bytes) {
             Ok(sig) => {
+                #[cfg(debug_assertions)]
                 env::log_str("DEBUG: Successfully created Signature object");
                 sig
             },
             Err(e) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("DEBUG: Error creating Signature: {:?}", e));
                 return Ok(Err(format!("Invalid signature format: {}", e)));
             }
         };
         
         // Parse the message as JSON to canonicalize it
+        #[cfg(debug_assertions)]
         env::log_str("VERIFICATION: Starting JSON parsing and canonicalization");
         let json_str = match String::from_utf8(message.clone()) {
             Ok(s) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("VERIFICATION: Raw message: {}", s));
                 s
             },
             Err(e) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("ERROR: Failed to convert message to string: {:?}", e));
                 return Ok(Err(format!("Invalid message format (not UTF-8): {}", e)));
             }
@@ -962,31 +1234,38 @@ pub fn resume(&mut self) {
         // Parse the JSON string
         let json_value: serde_json::Value = match serde_json::from_str(&json_str) {
             Ok(v) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("VERIFICATION: Parsed JSON: {}", serde_json::to_string(&v).unwrap_or_else(|_| "<serialization failed>".to_string())));
                 v
             },
             Err(e) => {
-                env::log_str(&format!("ERROR: Failed to parse JSON: {:?}", e));
-                env::log_str(&format!("ERROR: Invalid JSON content: {}", json_str));
+                #[cfg(debug_assertions)]
+                {
+                    env::log_str(&format!("ERROR: Failed to parse JSON: {:?}", e));
+                    env::log_str(&format!("ERROR: Invalid JSON content: {}", json_str));
+                }
                 return Ok(Err(format!("Invalid JSON format: {}", e)));
             }
         };
         
         // Extract the token_id from the message to handle batch minting
-        let current_token_id = match json_value.get("token_id") {
+        let _current_token_id = match json_value.get("token_id") {
             Some(token_id) => {
                 match token_id.as_str() {
                     Some(id) => {
+                        #[cfg(debug_assertions)]
                         env::log_str(&format!("VERIFICATION: Current token_id: {}", id));
                         id.to_string()
                     },
                     None => {
+                        #[cfg(debug_assertions)]
                         env::log_str("ERROR: token_id is not a string");
                         return Ok(Err("token_id must be a string".to_string()));
                     }
                 }
             },
             None => {
+                #[cfg(debug_assertions)]
                 env::log_str("ERROR: token_id not found in message");
                 return Ok(Err("token_id not found in message".to_string()));
             }
@@ -996,38 +1275,45 @@ pub fn resume(&mut self) {
         // (Previously checked for "sanctum" or "portal" inside the token_id and logged the result.)
         
         // Try verification with the original message
+        #[cfg(debug_assertions)]
         env::log_str("VERIFICATION: Trying verification with original message");
         
         // Canonicalize the JSON (already done in rodit_mint, but we do it again to be sure)
         let canonical_json = Self::canonicalize_json(&json_value);
         let canonical_json_str = match serde_json::to_string(&canonical_json) {
             Ok(s) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("VERIFICATION: Canonical JSON: {}", s));
                 s
             },
             Err(e) => {
+                #[cfg(debug_assertions)]
                 env::log_str(&format!("ERROR: Failed to serialize canonical JSON: {:?}", e));
                 return Ok(Err(format!("Error serializing canonical JSON: {}", e)));
             }
         };
         
         // Calculate hash using SHA-512 (nacl.hash in JavaScript uses SHA-512)
+        #[cfg(debug_assertions)]
         env::log_str("VERIFICATION: Calculating SHA-512 hash");
         use sha2::{Sha512, Digest};
         let mut hasher = Sha512::new();
         hasher.update(canonical_json_str.as_bytes());
         let hash_result = hasher.finalize();
         
-        // Convert full hash to hex for logging
-        let hash_hex: String = hash_result.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect();
-        
-        env::log_str(&format!("VERIFICATION: Full hash length: {}", hash_result.len()));
-        env::log_str(&format!("VERIFICATION: Full hash (hex): {}", hash_hex));
-        
-        // Use the full SHA-512 hash for verification to match JavaScript behavior
-        env::log_str("VERIFICATION: Using full SHA-512 hash for verification");
+        #[cfg(debug_assertions)]
+        {
+            // Convert full hash to hex for logging
+            let hash_hex: String = hash_result.iter()
+                .map(|b| format!("{:02x}", b))
+                .collect();
+            
+            env::log_str(&format!("VERIFICATION: Full hash length: {}", hash_result.len()));
+            env::log_str(&format!("VERIFICATION: Full hash (hex): {}", hash_hex));
+            
+            // Use the full SHA-512 hash for verification to match JavaScript behavior
+            env::log_str("VERIFICATION: Using full SHA-512 hash for verification");
+        }
         
         // The hash_hex and hash_result variables are already available from above
         // No need to create a separate hash_for_verification variable
@@ -1038,50 +1324,62 @@ pub fn resume(&mut self) {
         let mut verified = false;
         
         // Ensure there are authorized signers
+        #[cfg(debug_assertions)]
         env::log_str(&format!("VERIFICATION: Number of authorized signers: {}", self.authorized_signers.len()));
         if self.authorized_signers.is_empty() {
+            #[cfg(debug_assertions)]
             env::log_str("ERROR: No authorized signers configured");
             return Ok(Err("No authorized signers configured".to_string()));
         }
         
         // Try to verify with each authorized signer
-        for (i, pk_bytes) in self.authorized_signers.iter().enumerate() {
-            env::log_str(&format!("VERIFICATION: Checking signer #{}", i + 1));
-            
-            // Convert bytes to hex for logging
-            let pk_hex: String = pk_bytes.iter()
-                .map(|b| format!("{:02x}", b))
-                .collect();
-            env::log_str(&format!("VERIFICATION: Signer public key (hex): {}", pk_hex));
+        for (_i, pk_bytes) in self.authorized_signers.iter().enumerate() {
+            #[cfg(debug_assertions)]
+            {
+                env::log_str(&format!("VERIFICATION: Checking signer #{}", _i + 1));
+                
+                // Convert bytes to hex for logging
+                let pk_hex: String = pk_bytes.iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect();
+                env::log_str(&format!("VERIFICATION: Signer public key (hex): {}", pk_hex));
+            }
             
             let public_key = match PublicKey::from_bytes(&pk_bytes) {
                 Ok(pk) => {
+                    #[cfg(debug_assertions)]
                     env::log_str("VERIFICATION: Successfully parsed public key");
                     pk
                 },
-                Err(e) => {
-                    env::log_str(&format!("ERROR: Failed to parse public key #{}: {:?}", i + 1, e));
+                Err(_e) => {
+                    #[cfg(debug_assertions)]
+                    env::log_str(&format!("ERROR: Failed to parse public key #{}: {:?}", _i + 1, _e));
                     continue;
                 }
             };
             
+            #[cfg(debug_assertions)]
             env::log_str("VERIFICATION: Attempting verification with this key");
             match public_key.verify(&hash_result, &signature) {
                 Ok(_) => {
-                    env::log_str(&format!("VERIFICATION: Signature verified successfully with signer #{}", i + 1));
+                    #[cfg(debug_assertions)]
+                    env::log_str(&format!("VERIFICATION: Signature verified successfully with signer #{}", _i + 1));
                     verified = true;
                     break;
                 },
-                Err(e) => {
-                    env::log_str(&format!("VERIFICATION: Verification failed with signer #{}: {:?}", i + 1, e));
+                Err(_e) => {
+                    #[cfg(debug_assertions)]
+                    env::log_str(&format!("VERIFICATION: Verification failed with signer #{}: {:?}", _i + 1, _e));
                 }
             }
         }
         
         if verified {
+            #[cfg(debug_assertions)]
             env::log_str("VERIFICATION: Signature verification successful");
             Ok(Ok(()))
         } else {
+            #[cfg(debug_assertions)]
             env::log_str("ERROR: Signature verification failed with all authorized signers");
             Ok(Err("Invalid signature or unauthorized signer - signature did not match any authorized key".to_string()))
         }
@@ -1126,10 +1424,10 @@ mod tests {
         let mut contract = Contract::init(owner_account_id, None);
         
         // Test pause/resume
-        contract.pause();
+        contract.pause_contract();
         assert_eq!(contract.status, ContractStatus::Paused);
         
-        contract.resume();
+        contract.resume_contract();
         assert_eq!(contract.status, ContractStatus::Active);
     }
     
@@ -1204,6 +1502,6 @@ mod tests {
         // Try to pause with non-owner account
         let non_owner = "non-owner.near";
         mock_env(non_owner, 0);
-        contract.pause();
+        contract.pause_contract();
     }
 }

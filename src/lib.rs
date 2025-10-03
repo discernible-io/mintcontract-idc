@@ -194,13 +194,16 @@ impl Contract {
     pub fn init(owner_id: AccountId, metadata: Option<RoditContractMetadata>) -> Self {
         require!(!env::state_exists(), "Contract is already initialized");
         
-        let metadata = metadata.unwrap_or_else(|| RoditContractMetadata {
+        // Always enforce issueruniqueidentifier_url from the contract constant,
+        // regardless of what is supplied in the optional metadata.
+        let mut metadata = metadata.unwrap_or_else(|| RoditContractMetadata {
             versionnumber: RODIT_METADATA_SPEC.to_string(),
             name: "Discernible API forge".to_string(),
             symbol: "RODIT".to_string(),
             issueruniqueidentifier_url: Some(CONTRACT_NAME.to_string()),
             did_wba_jsonld: DID_WBA_JSON_LD.to_string(),
         });
+        metadata.issueruniqueidentifier_url = Some(CONTRACT_NAME.to_string());
 
         let current_time = env::block_timestamp().checked_div(1_000_000_000).unwrap_or_else(|| env::panic_str("Timestamp division overflow"));
         
@@ -254,8 +257,6 @@ impl Contract {
         // Log that we're updating metadata and config with specific version information
         env::log_str(&format!("Upgrading contract metadata from version {} to {}", 
             old_contract.metadata.versionnumber, RODIT_METADATA_SPEC));
-        env::log_str(&format!("Upgrading issuer URL from {} to 20251001.rodit.org", 
-            old_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>")));
         env::log_str(&format!("Upgrading delay from {} to 86400 seconds (24 hours)", 
             old_contract.upgrade_config.upgrade_delay));
         

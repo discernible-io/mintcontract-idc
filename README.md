@@ -562,6 +562,13 @@ All events use this envelope:
    near call 20251001-rodit-org.testnet init '{"owner_id":"20251001-rodit-org.testnet","metadata":null}' --accountId 20251001-rodit-org.testnet
    ```
 
+### Notes
+
+When CONTRACT_NAME=20251001-rodit-org.testnet
+Then replacing - with . we get 
+pub const CONTRACT_NAME: &str = "20251001.rodit.org";
+Where rodit.org is the controlling domain for the contract.
+
 ### Deployment Checklist
 
 - [ ] Compile contract in release mode (debug logs disabled)
@@ -604,15 +611,6 @@ If upgrading from an older contract version:
 
 ### "No authorized signers configured" Error
 **Solution**: Ensure you're adding signers to the correct contract that the frontend actually calls. Check the contract address in your configuration files.
-
----
-
-## Discernible Ecosystem
-
-- **Discernible RODITAPI**: RODIT and API manager
-- **Discernible TOOLS**: Local API tunnel configuration
-- **Discernible TUN**: API tunnels
-- **Discernible DEV API forge**: RODIT minter
 
 ---
 

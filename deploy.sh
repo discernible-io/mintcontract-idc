@@ -6,6 +6,14 @@
 
 set -e  # Exit on any error
 
+# Detect NEAR CLI location
+NEAR_CLI=$(which near 2>/dev/null || echo "")
+if [ -z "$NEAR_CLI" ]; then
+  echo "Error: NEAR CLI not found in PATH"
+  echo "Please install NEAR CLI: cargo install near-cli-rs"
+  exit 1
+fi
+
 # Default values
 NETWORK="testnet"
 UPGRADE_DELAY_SECONDS=30  # 1/2 minutes
@@ -32,6 +40,21 @@ echo "Account ID: $ACCOUNT_ID"
 echo "Network: $NETWORK"
 echo
 
+# Step 0: Check and ensure wasm32-unknown-unknown target is installed
+echo "Step 0: Checking Rust environment..."
+if ! rustup target list --installed | grep -q "wasm32-unknown-unknown"; then
+  echo "wasm32-unknown-unknown target not found. Installing..."
+  rustup target add wasm32-unknown-unknown
+  if [ $? -ne 0 ]; then
+    echo "Error: Failed to install wasm32-unknown-unknown target"
+    exit 1
+  fi
+  echo "wasm32-unknown-unknown target installed successfully!"
+else
+  echo "wasm32-unknown-unknown target is already installed."
+fi
+echo
+
 # Step 1: Build the contract
 echo "Step 1: Building contract..."
 cargo near build non-reproducible-wasm --no-abi
@@ -44,12 +67,12 @@ echo
 
 # Initial deployment detection and flow
 echo "Checking if contract is already initialized on $ACCOUNT_ID ..."
-if ! /usr/bin/near view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
+if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
   echo "No initialized contract detected. Performing initial deploy + init."
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! /usr/bin/near contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -57,7 +80,7 @@ if ! /usr/bin/near view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK
 
   # Step B: Initialize (init is not payable; attach 0 NEAR)
   echo "Calling init ..."
-  if ! /usr/bin/near call "$ACCOUNT_ID" init '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' --account-id "$ACCOUNT_ID" --network-id "$NETWORK"; then
+  if ! $NEAR_CLI call "$ACCOUNT_ID" init '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' --account-id "$ACCOUNT_ID" --network-id "$NETWORK"; then
     echo "Error: init call failed"
     exit 1
   fi
@@ -69,7 +92,7 @@ fi
 
 # Step 2: Propose the upgrade
 echo "Step 2: Proposing upgrade..."
-/usr/bin/near call $ACCOUNT_ID propose_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID propose_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
 if [ $? -ne 0 ]; then
   echo "Error: Failed to propose upgrade"
   exit 1
@@ -87,7 +110,7 @@ TOTAL_WAIT_TIME=$((UPGRADE_DELAY_SECONDS + BUFFER_SECONDS))
 ELAPSED_TIME=0
 
 while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
-  REMAINING=$(/usr/bin/near view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
+  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
   
   # Check if the result is a number
   if [[ $REMAINING =~ ^[0-9]+$ ]]; then
@@ -108,7 +131,7 @@ while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
   
   # If we've waited longer than expected, check if we can proceed anyway
   if [ $ELAPSED_TIME -ge $TOTAL_WAIT_TIME ]; then
-    FINAL_CHECK=$(/usr/bin/near view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
+    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
     if [ "$FINAL_CHECK" -eq "0" ]; then
       echo "Upgrade delay period has completed!"
       break
@@ -133,7 +156,7 @@ echo
 
 # Step 4: Finalize the upgrade
 echo "Step 4: Finalizing upgrade..."
-/usr/bin/near call $ACCOUNT_ID finalize_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID finalize_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
 if [ $? -ne 0 ]; then
   echo "Error: Failed to finalize upgrade"
   exit 1
@@ -143,7 +166,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-/usr/bin/near contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1
@@ -153,7 +176,7 @@ echo
 
 # Step 6: Resume the contract
 echo "Step 6: Resuming contract..."
-/usr/bin/near call $ACCOUNT_ID resume_contract '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
 if [ $? -ne 0 ]; then
   echo "Error: Failed to resume contract"
   exit 1

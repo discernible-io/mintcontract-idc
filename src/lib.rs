@@ -301,6 +301,7 @@ impl Contract {
         
         if new_contract.metadata.issueruniqueidentifier_url != Some(CONTRACT_NAME.to_string()) {
             let error_msg = format!("ERROR: Issuer URL not updated correctly. Expected {}, got {}", 
+                CONTRACT_NAME,
                 new_contract.metadata.issueruniqueidentifier_url.as_deref().unwrap_or("<none>"));
             env::log_str(&error_msg);
             env::panic_str(&error_msg);

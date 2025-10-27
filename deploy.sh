@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # update_contract.sh - Automates the NEAR contract upgrade process
-# Usage: ./update_contract.sh <account_id> [network]
+# Usage: ./update_contract.sh <account_id> [network_connection] [custom_rpc_url]
 # Example: ./update_contract.sh rodit-org.near testnet
+# Example with alternative connection: ./update_contract.sh rodit-org.near mainnet-fastnear
+# Example with custom RPC: ./update_contract.sh rodit-org.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free
 
 set -e  # Exit on any error
 
@@ -25,7 +27,19 @@ INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
 # Parse arguments
 if [ -z "$1" ]; then
   echo "Error: Account ID is required"
-  echo "Usage: ./update_contract.sh <account_id> [network]"
+  echo "Usage: ./update_contract.sh <account_id> [network_connection] [custom_rpc_url]"
+  echo ""
+  echo "Available network connections (use 'near config show-connections' to see all):"
+  echo "  - testnet (default)"
+  echo "  - testnet-fastnear"
+  echo "  - mainnet"
+  echo "  - mainnet-fastnear"
+  echo "  - mainnet-lava"
+  echo ""
+  echo "To add a custom RPC endpoint:"
+  echo "  ./update_contract.sh rodit-org.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free"
+  echo ""
+  echo "This will create a temporary network connection 'mainnet-custom' with the specified RPC URL."
   exit 1
 fi
 
@@ -35,9 +49,40 @@ if [ ! -z "$2" ]; then
   NETWORK=$2
 fi
 
+# Check if a custom RPC URL is provided (3rd argument)
+if [ ! -z "$3" ]; then
+  CUSTOM_RPC_URL=$3
+  
+  # Determine the base network name from the connection name
+  if [[ "$NETWORK" == mainnet* ]]; then
+    BASE_NETWORK="mainnet"
+  elif [[ "$NETWORK" == testnet* ]]; then
+    BASE_NETWORK="testnet"
+  else
+    BASE_NETWORK="$NETWORK"
+  fi
+  
+  echo "Adding custom network connection: $NETWORK"
+  echo "RPC URL: $CUSTOM_RPC_URL"
+  echo "Base network: $BASE_NETWORK"
+  
+  # Add the custom network connection
+  $NEAR_CLI config add-connection \
+    --network-name "$BASE_NETWORK" \
+    --connection-name "$NETWORK" \
+    --rpc-url "$CUSTOM_RPC_URL" \
+    --wallet-url "https://app.mynearwallet.com/" \
+    --explorer-transaction-url "https://explorer.near.org/transactions/"
+  
+  if [ $? -ne 0 ]; then
+    echo "Warning: Failed to add custom network connection. Proceeding with existing configuration."
+  fi
+  echo ""
+fi
+
 echo "=== Contract Update Process ==="
 echo "Account ID: $ACCOUNT_ID"
-echo "Network: $NETWORK"
+echo "Network Connection: $NETWORK"
 echo
 
 # Step 0: Check and ensure wasm32-unknown-unknown target is installed
@@ -67,7 +112,7 @@ echo
 
 # Initial deployment detection and flow
 echo "Checking if contract is already initialized on $ACCOUNT_ID ..."
-if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
+if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" now >/dev/null 2>&1; then
   echo "No initialized contract detected. Performing initial deploy + init."
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
@@ -80,7 +125,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/
 
   # Step B: Initialize (init is not payable; attach 0 NEAR)
   echo "Calling init ..."
-  if ! $NEAR_CLI call "$ACCOUNT_ID" init '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' --account-id "$ACCOUNT_ID" --network-id "$NETWORK"; then
+  if ! $NEAR_CLI call "$ACCOUNT_ID" init json-args '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config "$NETWORK" sign-with-keychain send; then
     echo "Error: init call failed"
     exit 1
   fi
@@ -92,7 +137,7 @@ fi
 
 # Step 2: Propose the upgrade
 echo "Step 2: Proposing upgrade..."
-$NEAR_CLI call $ACCOUNT_ID propose_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID propose_upgrade json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to propose upgrade"
   exit 1
@@ -110,7 +155,7 @@ TOTAL_WAIT_TIME=$((UPGRADE_DELAY_SECONDS + BUFFER_SECONDS))
 ELAPSED_TIME=0
 
 while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
-  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
+  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
   
   # Check if the result is a number
   if [[ $REMAINING =~ ^[0-9]+$ ]]; then
@@ -131,7 +176,7 @@ while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
   
   # If we've waited longer than expected, check if we can proceed anyway
   if [ $ELAPSED_TIME -ge $TOTAL_WAIT_TIME ]; then
-    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK | tail -n 1 | tr -d ' ')
+    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
     if [ "$FINAL_CHECK" -eq "0" ]; then
       echo "Upgrade delay period has completed!"
       break
@@ -156,7 +201,7 @@ echo
 
 # Step 4: Finalize the upgrade
 echo "Step 4: Finalizing upgrade..."
-$NEAR_CLI call $ACCOUNT_ID finalize_upgrade '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID finalize_upgrade json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to finalize upgrade"
   exit 1
@@ -176,7 +221,7 @@ echo
 
 # Step 6: Resume the contract
 echo "Step 6: Resuming contract..."
-$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --account-id $ACCOUNT_ID --network-id $NETWORK
+$NEAR_CLI call $ACCOUNT_ID resume_contract json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to resume contract"
   exit 1

@@ -125,7 +125,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" 
 
   # Step B: Initialize (init is not payable; attach 0 NEAR)
   echo "Calling init ..."
-  if ! $NEAR_CLI call "$ACCOUNT_ID" init json-args '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config "$NETWORK" sign-with-keychain send; then
+  if ! $NEAR_CLI call "$ACCOUNT_ID" init '{"owner_id":"'$ACCOUNT_ID'","metadata":null}' --use-account "$ACCOUNT_ID" --network-id "$NETWORK" --gas 100000000000000 --deposit 0; then
     echo "Error: init call failed"
     exit 1
   fi
@@ -137,7 +137,7 @@ fi
 
 # Step 2: Propose the upgrade
 echo "Step 2: Proposing upgrade..."
-$NEAR_CLI call $ACCOUNT_ID propose_upgrade json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
+$NEAR_CLI call $ACCOUNT_ID propose_upgrade '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --deposit 0
 if [ $? -ne 0 ]; then
   echo "Error: Failed to propose upgrade"
   exit 1
@@ -201,7 +201,7 @@ echo
 
 # Step 4: Finalize the upgrade
 echo "Step 4: Finalizing upgrade..."
-$NEAR_CLI call $ACCOUNT_ID finalize_upgrade json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
+$NEAR_CLI call $ACCOUNT_ID finalize_upgrade '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --deposit 0
 if [ $? -ne 0 ]; then
   echo "Error: Failed to finalize upgrade"
   exit 1
@@ -221,7 +221,7 @@ echo
 
 # Step 6: Resume the contract
 echo "Step 6: Resuming contract..."
-$NEAR_CLI call $ACCOUNT_ID resume_contract json-args '{}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
+$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --deposit 0
 if [ $? -ne 0 ]; then
   echo "Error: Failed to resume contract"
   exit 1

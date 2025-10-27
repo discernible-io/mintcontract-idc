@@ -2,9 +2,9 @@
 
 # update_contract.sh - Automates the NEAR contract upgrade process
 # Usage: ./update_contract.sh <account_id> [network_connection] [custom_rpc_url]
-# Example: ./update_contract.sh rodit-org.near testnet
-# Example with alternative connection: ./update_contract.sh rodit-org.near mainnet-fastnear
-# Example with custom RPC: ./update_contract.sh rodit-org.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free
+# Example: ./update_contract.sh roditcorp-com.near testnet
+# Example with alternative connection: ./update_contract.sh roditcorp-com.near mainnet-fastnear
+# Example with custom RPC: ./update_contract.sh roditcorp-com.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free
 
 set -e  # Exit on any error
 
@@ -37,7 +37,7 @@ if [ -z "$1" ]; then
   echo "  - mainnet-lava"
   echo ""
   echo "To add a custom RPC endpoint:"
-  echo "  ./update_contract.sh rodit-org.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free"
+  echo "  ./update_contract.sh roditcorp-com.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free"
   echo ""
   echo "This will create a temporary network connection 'mainnet-custom' with the specified RPC URL."
   exit 1

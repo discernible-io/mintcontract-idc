@@ -26,7 +26,7 @@
 //! 
 //! ## Version
 //! 
-//! Contract version: RODIT-near.org-20251001
+//! Contract version: RODiTCorp-near.org-20251027
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
@@ -48,9 +48,9 @@ use token_validation::validate_token_metadata;
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODIT-near.org-20251001";
+pub const RODIT_METADATA_SPEC: &str = "RODiTCorp-near.org-20251027";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const CONTRACT_NAME: &str = "20251001.rodit.org";
+pub const CONTRACT_NAME: &str = "20251027.rodit.org";
 
 // Default fee values - can be overridden by contract owner
 pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR

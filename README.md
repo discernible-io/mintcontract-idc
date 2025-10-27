@@ -2,8 +2,8 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: RODIT-near.org-20251001  
-**Example Account**: `20251001-rodit-org.testnet`  
+**Contract Version**: RODiTCorp-near.org-20251027  
+**Example Account**: `roditcorp-com.near`  
 **Controlling Domain**: `rodit.org`
 
 ---
@@ -176,8 +176,8 @@ Input values for:
 
 ### Contract Constants
 
-- `RODIT_METADATA_SPEC = "RODIT-near.org-20251001"`
-- Issuer URL: `"20251001.rodit.org"`
+- `RODIT_METADATA_SPEC = "RODiTCorp-near.org-20251027"`
+- Issuer URL: `"20251027.rodit.org"`
 
 ---
 
@@ -214,7 +214,7 @@ All fields are strings on-chain for robust, uniform serialization:
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=20251001-rodit-org.testnet;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=roditcorp-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -253,7 +253,7 @@ All fields are strings on-chain for robust, uniform serialization:
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=20251001-rodit-org.testnet;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -274,7 +274,7 @@ All fields are strings on-chain for robust, uniform serialization:
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=20251001-rodit-org.testnet;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -511,7 +511,7 @@ All events use this envelope:
 ```json
 {
   "standard": "PENDING nepXXX",
-  "version": "RODIT-near.org-20251001",
+  "version": "RODiTCorp-near.org-20251027",
   "event": "<event_name>",
   "data": [ { /* event-specific object */ } ]
 }
@@ -554,19 +554,19 @@ All events use this envelope:
 
 2. **Deploy code to testnet**:
    ```bash
-   near deploy --accountId 20251001-rodit-org.testnet --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
+   near deploy --accountId roditcorp-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
    ```
 
 3. **Initialize the contract**:
    ```bash
-   near call 20251001-rodit-org.testnet init '{"owner_id":"20251001-rodit-org.testnet","metadata":null}' --accountId 20251001-rodit-org.testnet
+   near call roditcorp-com.near init '{"owner_id":"roditcorp-com.near","metadata":null}' --accountId roditcorp-com.near
    ```
 
 ### Notes
 
-When CONTRACT_NAME=20251001-rodit-org.testnet
+When CONTRACT_NAME=roditcorp-com.near
 Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "20251001.rodit.org";
+pub const CONTRACT_NAME: &str = "20251027.rodit.org";
 Where rodit.org is the controlling domain for the contract.
 
 ### Deployment Checklist

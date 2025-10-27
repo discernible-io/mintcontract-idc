@@ -23,74 +23,342 @@
 
 ## Overview
 
-Discernible DEV API forge creates sets of RODIT in testnet with all the configuration and subscription information necessary to set up Discernible TUN API calls.
+RODiT (Rich Online Digital Token) is a NEAR smart contract that manages API access tokens with comprehensive policy metadata. The Discernible DEV API forge creates sets of RODiT tokens with all the configuration and subscription information necessary to set up Discernible TUN API calls.
 
-Authentication between API clients and server uses PKC with a twist. Ownership of the RODITs is double-checked with the NEAR Protocol in real time, and the PKC pair used is the pair of the RODIT themselves.
+Authentication between API clients and server uses Public Key Cryptography (PKC) with a twist: ownership of the RODiTs is double-checked with the NEAR Protocol in real time, and the PKC pair used is the key pair of the RODIT token itself.
 
 Read more: https://vaceituno.medium.com/unleashing-the-power-of-public-key-cryptography-with-non-fungible-tokens-513286d47524
 
 ### What is RODiT?
 
-A NEAR smart contract for API-access tokens with strong metadata semantics, upgrade discipline, and auditable events.
+A production-ready NEAR smart contract for managing API-access tokens with strong metadata semantics, security features, and upgrade discipline.
 
-**Key Features**:
-- Policy-rich token metadata for API access control
-- Time-locked upgrade mechanism (24-hour delay)
-- Rate limiting (10 mints per hour per account)
-- Configurable fee system
-- Automatic storage cost management
-- NEP-297-style event logging
-- JSON-LD-based metadata for semantic interoperability
+**Core Features**:
+- **Token Minting**: Create API access tokens with comprehensive metadata including rate limits, CIDR restrictions, JWT duration, and permissioned routes
+- **Token Transfer**: Transfer tokens between NEAR accounts with event logging
+- **Token Burning**: Destroy tokens with automatic storage refunds
+- **Fee Management**: Configurable initialization fees, contract fee percentages, and storage costs
+- **Rate Limiting**: Prevent spam with 10 mints per hour per account
+- **Signature Verification**: Ed25519 signature verification for fee authorization
+- **Time-Locked Upgrades**: 24-hour delay mechanism for secure contract upgrades
+- **Storage Management**: Automatic tracking and refunding of storage costs
+- **Event Logging**: NEP-297-style standardized event emission
+- **JSON-LD Metadata**: Semantic interoperability with DID:wba vocabulary
+
+**Security Features**:
+- Checks-effects-interactions pattern to prevent reentrancy attacks
+- Arithmetic overflow protection with checked operations
+- Rate limiting to prevent spam and DoS attacks
+- Time-delayed contract upgrades for security review periods
+- Comprehensive input validation on all metadata fields
+- Owner-only access control for administrative functions
+- 1 yoctoNEAR deposit requirement on state-changing functions to prevent function-call access key misuse
 
 ---
 
 ## Quick Start
 
-### 0. Prerequisites
+### Prerequisites
 
-- near cli installed
-- Download the code from the repository
-- When downloading from VS Code it is possible that the shell script files have the wrong permissions and need to be set x so they can run
-- Installing npm:
+**Required Tools**:
+- **NEAR CLI**: Install the Rust-based NEAR CLI
   ```bash
-  node -v
-  sudo npm cache clean -f
-  sudo npm install -g n
-  sudo n stable
-  node -v
+  cargo install near-cli-rs
   ```
+- **Rust Toolchain**: Required for building the contract
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  rustup target add wasm32-unknown-unknown
+  ```
+- **NEAR Account**: You need a NEAR account with sufficient balance
+  - Testnet: Create at https://testnet.mynearwallet.com/
+  - Mainnet: Create at https://app.mynearwallet.com/
 
-### 1. Install and Build
+**Account Balance Requirements**:
+- **Testnet**: ~1-2 NEAR for contract deployment and storage
+- **Mainnet**: ~1-2 NEAR for contract deployment and storage
+
+### Build the Contract
 
 ```bash
-npm install  # in each directory
-npm run build
+# Clone the repository
+git clone <repository-url>
+cd mintrscontractapi-rodit
+
+# Build the contract (this creates the WASM file)
+cargo near build non-reproducible-wasm --no-abi
 ```
 
-### 2. Deploy the Contract
+The compiled contract will be at: `./target/near/rodit_near.wasm`
+
+---
+
+## Deployment Guide
+
+### Testnet Deployment
+
+#### Option 1: Using the Deploy Script (Recommended)
+
+The `deploy.sh` script handles initial deployment and upgrades automatically:
 
 ```bash
-# Delete the neardev directory where the contract is
-npm run deploy
+# Deploy to testnet with default RPC
+./deploy.sh your-account.testnet testnet
+
+# Or use FastNEAR RPC for better performance
+./deploy.sh your-account.testnet testnet-fastnear
 ```
 
-### 3. Initialize the Contract
+**What the script does**:
+1. Checks Rust environment and installs `wasm32-unknown-unknown` if needed
+2. Builds the contract with `cargo near build`
+3. Checks if contract is already initialized
+4. If not initialized:
+   - Deploys the WASM code
+   - Calls `init()` to initialize the contract
+5. If already initialized (upgrade flow):
+   - Proposes upgrade
+   - Waits for upgrade delay period (30 seconds for testnet)
+   - Finalizes upgrade
+   - Deploys new contract code
+   - Resumes contract
 
+#### Option 2: Manual Deployment
+
+**Step 1: Deploy the contract code**
 ```bash
-npm run init
+near contract deploy your-account.testnet \
+  use-file ./target/near/rodit_near.wasm \
+  without-init-call \
+  network-config testnet \
+  sign-with-legacy-keychain \
+  send
 ```
 
-### 4. Start the Front End
-
+**Step 2: Initialize the contract**
 ```bash
-npm run start
-# Open the Front End from a browser
-# Log in with your NEAR Wallet
+near call your-account.testnet init \
+  '{"owner_id":"your-account.testnet","metadata":null}' \
+  --use-account your-account.testnet \
+  --network-id testnet \
+  --gas 100000000000000 \
+  --deposit 0
 ```
 
-**Start as background process**:
+**Step 3: Verify deployment**
 ```bash
-setsid npm run start >/dev/null 2>&1 < /dev/null &
+near view your-account.testnet get_contract_status \
+  network-config testnet now
+```
+
+---
+
+### Mainnet Deployment
+
+#### Option 1: Using the Deploy Script (Recommended)
+
+**Important**: Mainnet deployment requires your account credentials in `~/.near-credentials/mainnet/`
+
+```bash
+# Deploy to mainnet using FastNEAR RPC (recommended for reliability)
+./deploy.sh your-account.near mainnet-fastnear
+
+# Or use Lava RPC
+./deploy.sh your-account.near mainnet-lava
+
+# Or use custom RPC endpoint
+./deploy.sh your-account.near mainnet https://rpc.mainnet.near.org
+```
+
+**Available Mainnet RPC Endpoints**:
+- `mainnet-fastnear`: https://free.rpc.fastnear.com/ (recommended)
+- `mainnet-lava`: https://near.lava.build/
+- Custom: You can specify any mainnet RPC URL
+
+**Deployment Process**:
+1. The script uses `sign-with-legacy-keychain` to read credentials from `~/.near-credentials/mainnet/your-account.near.json`
+2. Builds the contract
+3. Deploys and initializes (or upgrades if already deployed)
+4. Provides transaction links to NEAR Explorer
+
+#### Option 2: Manual Mainnet Deployment
+
+**Step 1: Ensure you have credentials**
+```bash
+# Check if credentials exist
+ls ~/.near-credentials/mainnet/your-account.near.json
+```
+
+**Step 2: Deploy the contract**
+```bash
+near contract deploy your-account.near \
+  use-file ./target/near/rodit_near.wasm \
+  without-init-call \
+  network-config mainnet-fastnear \
+  sign-with-legacy-keychain \
+  send
+```
+
+**Step 3: Initialize the contract**
+```bash
+near call your-account.near init \
+  '{"owner_id":"your-account.near","metadata":null}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0
+```
+
+**Step 4: Verify deployment**
+```bash
+near view your-account.near get_contract_status \
+  network-config mainnet-fastnear now
+
+# Check contract configuration
+near view your-account.near get_config \
+  network-config mainnet-fastnear now
+```
+
+---
+
+### Post-Deployment Configuration
+
+#### 1. Add Authorized Signers
+
+For fee signature verification, add authorized public keys:
+
+```bash
+# Add a signer (public key must be 64-character lowercase hex)
+near call your-account.near add_authorized_signer \
+  '{"public_key_hex":"your_64_char_hex_public_key"}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0.000000000000000000000001
+```
+
+#### 2. Configure Fees (Optional)
+
+```bash
+# Set initialization fee (in yoctoNEAR)
+near call your-account.near set_initialize_fee \
+  '{"new_fee":"100000000000000000000"}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0.000000000000000000000001
+
+# Set contract fee percentage (0-10%)
+near call your-account.near set_contract_fee_percentage \
+  '{"new_percentage":1}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0.000000000000000000000001
+```
+
+#### 3. Verify Configuration
+
+```bash
+# View all fees
+near view your-account.near get_fees \
+  network-config mainnet-fastnear now
+
+# View complete configuration
+near view your-account.near get_config \
+  network-config mainnet-fastnear now
+```
+
+---
+
+### Upgrading an Existing Contract
+
+The upgrade process uses a time-locked mechanism for security:
+
+**Using the deploy script** (handles everything automatically):
+```bash
+./deploy.sh your-account.near mainnet-fastnear
+```
+
+**Manual upgrade process**:
+
+```bash
+# Step 1: Propose upgrade
+near call your-account.near propose_upgrade '{}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0
+
+# Step 2: Wait for upgrade delay (24 hours on mainnet)
+# Check remaining time:
+near view your-account.near get_upgrade_status \
+  network-config mainnet-fastnear now
+
+# Step 3: Finalize upgrade
+near call your-account.near finalize_upgrade '{}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0
+
+# Step 4: Deploy new contract code
+near contract deploy your-account.near \
+  use-file ./target/near/rodit_near.wasm \
+  with-init-call upgrade \
+  json-args '{}' \
+  prepaid-gas '30.0 Tgas' \
+  attached-deposit '0 NEAR' \
+  network-config mainnet-fastnear \
+  sign-with-legacy-keychain \
+  send
+
+# Step 5: Resume contract
+near call your-account.near resume_contract '{}' \
+  --use-account your-account.near \
+  --network-id mainnet-fastnear \
+  --gas 100000000000000 \
+  --deposit 0.000000000000000000000001
+```
+
+---
+
+### Troubleshooting
+
+**Issue**: `Failed to get network config`
+- **Solution**: Check the network name spelling (e.g., `mainnet` not `mainnnet`)
+
+**Issue**: `Failed to fetch access key list`
+- **Solution**: Verify credentials exist in `~/.near-credentials/mainnet/your-account.near.json`
+- **Solution**: Try a different RPC endpoint (e.g., `mainnet-fastnear` instead of `mainnet`)
+
+**Issue**: `error while sending payload`
+- **Solution**: RPC endpoint may be down or rate-limited, try alternative endpoints:
+  - `mainnet-fastnear`
+  - `mainnet-lava`
+  - Custom RPC URL
+
+**Issue**: Interactive prompts during deployment
+- **Solution**: Pre-configure network connections or use existing ones like `mainnet-fastnear`
+- **Solution**: The deploy script now uses `sign-with-legacy-keychain` to avoid keychain prompts
+
+---
+
+### Network Configuration
+
+View available network connections:
+```bash
+near config show-connections
+```
+
+Add a custom network connection:
+```bash
+near config add-connection \
+  --network-name mainnet \
+  --connection-name my-mainnet \
+  --rpc-url https://rpc.mainnet.near.org \
+  --wallet-url https://app.mynearwallet.com/ \
+  --explorer-transaction-url https://explorer.near.org/transactions/
 ```
 
 ### 5. Jump Start Your Server Account
@@ -127,24 +395,178 @@ Input values for:
 
 ## Contract Architecture
 
-### Who
+The RODiT contract is structured as a modular Rust smart contract with the following components:
 
-- **Contract owner**
-  - Deploys/initializes the contract and controls lifecycle
-  - Admin methods in `src/lib.rs`:
-    - Pause/resume: `pause_contract()`, `resume_contract()`
-    - Upgrade controls: `propose_upgrade()`, `cancel_upgrade()`, `finalize_upgrade()`
-    - Signer management: `add_authorized_signer()`, `remove_authorized_signer()`
+### File Structure
 
-- **Token holders**
-  - Own, transfer, and burn RODiT tokens
-  - Methods: `rodit_transfer()`, `rodit_burn()`, views like `rodit_tokens_for_owner()`
+```
+src/
+├── lib.rs              # Main contract logic and state
+├── token_validation.rs # Token metadata validation
+├── events.rs           # NEP-297 event emission
+├── storage.rs          # Storage cost management
+└── upgrade.rs          # Time-locked upgrade mechanism
+```
 
-- **Authorized signers**
-  - Keys permitted to sign fee data for minting (stored in `authorized_signers: UnorderedSet<Vec<u8>>`)
+### Contract State (`Contract` struct)
 
-- **Integrators**
-  - Use view functions for metadata, tokens, and stats (read-only)
+The main contract state includes:
+
+```rust
+pub struct Contract {
+    pub owner_id: AccountId,                                    // Contract owner
+    pub tokens_per_owner: LookupMap<AccountId, Vector<String>>, // Owner → token IDs
+    pub tokens_by_id: LookupMap<String, Token>,                 // Token ID → token
+    pub token_metadata_by_id: UnorderedMap<String, TokenMetadata>, // Token ID → metadata
+    pub metadata: RoditContractMetadata,                        // Contract metadata
+    pub status: ContractStatus,                                 // Active/Paused/Upgrading
+    pub stats: ContractStats,                                   // Supply, timestamps
+    pub authorized_signers: UnorderedSet<Vec<u8>>,             // Ed25519 public keys
+    pub upgrade_config: ContractUpgrade,                        // Upgrade state
+    pub fees: ContractFees,                                     // Fee configuration
+    pub mint_rate_limits: LookupMap<AccountId, Vec<u64>>,      // Rate limiting
+}
+```
+
+### Key Constants
+
+Defined in `src/lib.rs`:
+
+- `RODIT_METADATA_SPEC`: `"RODiTCorp-near.org-20251027"` - Contract version
+- `CONTRACT_NAME`: `"20251027.rodit.org"` - Issuer identifier
+- `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
+- `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
+- `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
+- `MAX_MINTS_PER_WINDOW`: 10 mints per account per hour
+
+### Core Data Types
+
+**ContractStatus** (enum):
+```rust
+pub enum ContractStatus {
+    Active,      // Normal operations
+    Paused,      // Operations suspended
+    Upgrading    // Upgrade in progress
+}
+```
+
+**TokenMetadata** (struct):
+```rust
+pub struct TokenMetadata {
+    pub openapijson_url: String,              // OpenAPI specification URL
+    pub not_after: String,                    // Expiration date
+    pub not_before: String,                   // Start date
+    pub max_requests: String,                 // Request limit
+    pub maxrq_window: String,                 // Time window for limits
+    pub webhook_url: String,                  // Webhook endpoint
+    pub webhook_cidr: String,                 // Webhook IP restrictions
+    pub userselected_dn: String,              // User-selected display name
+    pub allowed_cidr: String,                 // Allowed IP ranges
+    pub allowed_iso3166list: String,          // Allowed countries
+    pub jwt_duration: String,                 // JWT validity period
+    pub permissioned_routes: String,          // JSON of allowed routes
+    pub subjectuniqueidentifier_url: String,  // Subject identifier
+    pub serviceprovider_id: String,           // Service provider ID
+    pub serviceprovider_signature: String,    // Provider signature
+}
+```
+
+### Main Functions
+
+#### Token Lifecycle
+
+1. **`rodit_mint()`** - Create new tokens
+   - Validates metadata fields
+   - Checks rate limits
+   - Verifies Ed25519 signature on fee data
+   - Handles storage deposits and fees
+   - Emits mint event
+
+2. **`rodit_transfer()`** - Transfer tokens
+   - Requires 1 yoctoNEAR deposit
+   - Validates ownership
+   - Updates state atomically
+   - Emits transfer event
+
+3. **`rodit_burn()`** - Destroy tokens
+   - Requires 1 yoctoNEAR deposit
+   - Refunds storage costs
+   - Updates supply
+   - Emits burn event
+
+#### Query Functions
+
+- `rodit_token(token_id)` - Get single token with metadata
+- `rodit_tokens(from_index, limit)` - Paginated token list
+- `rodit_tokens_for_owner(account_id, from_index, limit)` - Owner's tokens
+- `rodit_supply_for_owner(account_id)` - Token count per owner
+- `rodit_total_supply()` - Total token count
+- `rodit_metadata()` - Contract metadata
+- `get_contract_status()` - Current contract status
+- `get_contract_stats()` - Supply and timestamps
+- `get_fees()` - Current fee configuration
+- `get_config()` - Complete contract configuration
+
+#### Administrative Functions
+
+**Contract Management**:
+- `pause_contract()` - Suspend operations (owner only)
+- `resume_contract()` - Resume operations (owner only)
+- `recover_token(token_id, destination)` - Recover lost tokens (owner only)
+
+**Upgrade Management** (time-locked):
+- `propose_upgrade()` - Start upgrade process (24-hour delay)
+- `cancel_upgrade()` - Cancel pending upgrade
+- `finalize_upgrade()` - Complete upgrade after delay
+- `get_upgrade_status()` - Check remaining time
+- `upgrade()` - Migration function called during deployment
+
+**Signer Management**:
+- `add_authorized_signer(public_key_hex)` - Add Ed25519 public key
+- `remove_authorized_signer(public_key_hex)` - Remove public key
+
+**Fee Management**:
+- `set_initialize_fee(new_fee)` - Update initialization fee
+- `set_contract_fee_percentage(new_percentage)` - Update contract fee (0-10%)
+- `set_storage_cost_per_byte(new_cost)` - Update storage cost
+
+### Security Patterns
+
+1. **Checks-Effects-Interactions**: All state changes happen before external calls
+2. **Reentrancy Protection**: State updates complete before Promise calls
+3. **Arithmetic Safety**: All arithmetic uses checked operations
+4. **Access Control**: Owner-only functions use `assert_owner()`
+5. **Rate Limiting**: Per-account mint limits prevent spam
+6. **Input Validation**: Comprehensive validation in `token_validation.rs`
+7. **1 yoctoNEAR Pattern**: Prevents function-call access key misuse
+
+### Module Breakdown
+
+**`token_validation.rs`**:
+- Validates all token metadata fields
+- Checks URL formats, date formats, CIDR notation
+- Validates JSON structures for permissioned routes
+
+**`events.rs`**:
+- NEP-297 compliant event emission
+- Events: mint, transfer, burn, recover, signer_added, signer_removed, contract_status_change
+
+**`storage.rs`**:
+- Calculates storage costs
+- Handles fee distribution
+- Manages storage deposits and refunds
+
+**`upgrade.rs`**:
+- Time-locked upgrade state machine
+- 24-hour delay for mainnet safety
+- Prevents unauthorized upgrades
+
+### Roles
+
+- **Contract Owner**: Deploys, configures, and manages the contract lifecycle
+- **Token Holders**: Own, transfer, and burn tokens
+- **Authorized Signers**: Sign fee data for minting operations
+- **Integrators**: Query contract data via view functions
 
 ### Core Types
 

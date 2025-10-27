@@ -117,7 +117,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" 
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -211,7 +211,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1

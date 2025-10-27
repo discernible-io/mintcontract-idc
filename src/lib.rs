@@ -1,6 +1,6 @@
 //! # RODIT Smart Contract
 //! 
-//! This is the main smart contract for the RODIT (Rights-Oriented Digital Identity Token) system.
+//! This is the main smart contract for the RODIT (Rich Online Digital Token) system.
 //! It manages the creation, transfer, and lifecycle of API access tokens on the NEAR blockchain.
 //! 
 //! ## Features

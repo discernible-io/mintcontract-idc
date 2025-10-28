@@ -1,12 +1,136 @@
 #!/bin/bash
 
-# update_contract.sh - Automates the NEAR contract upgrade process
-# Usage: ./update_contract.sh <account_id> [network_connection] [custom_rpc_url]
-# Example: ./update_contract.sh roditcorp-com.near testnet
-# Example with alternative connection: ./update_contract.sh roditcorp-com.near mainnet-fastnear
-# Example with custom RPC: ./update_contract.sh roditcorp-com.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free
+# deploy.sh - Automates the NEAR contract deployment, upgrade, and signer management
+# Version: 1.0.0
+# Usage: ./deploy.sh <command> [arguments]
+#
+# Commands:
+#   deploy <account_id> [network] [rpc_url]
+#       Builds the contract and performs deploy/upgrade workflow for the specified account
+#
+#   add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
+#       Adds one or more authorized signer public keys to the contract
+#
+#   help | --help | -h
+#       Displays detailed usage information
 
 set -e  # Exit on any error
+
+VERSION="1.0.0"
+
+add_custom_network_connection() {
+  local connection_name="$NETWORK"
+  local rpc_url="$CUSTOM_RPC_URL"
+
+  if [ -z "$rpc_url" ]; then
+    return
+  fi
+
+  local base_network
+  if [[ "$connection_name" == mainnet* ]]; then
+    base_network="mainnet"
+  elif [[ "$connection_name" == testnet* ]]; then
+    base_network="testnet"
+  else
+    base_network="$connection_name"
+  fi
+
+  echo "Adding custom network connection: $connection_name"
+  echo "RPC URL: $rpc_url"
+  echo "Base network: $base_network"
+
+  $NEAR_CLI config add-connection \
+    --network-name "$base_network" \
+    --connection-name "$connection_name" \
+    --rpc-url "$rpc_url" \
+    --wallet-url "https://app.mynearwallet.com/" \
+    --explorer-transaction-url "https://explorer.near.org/transactions/"
+
+  if [ $? -ne 0 ]; then
+    echo "Warning: Failed to add custom network connection. Proceeding with existing configuration."
+  fi
+  echo ""
+}
+
+add_signers_to_contract() {
+  if [ ${#AUTHORIZED_SIGNERS[@]} -eq 0 ]; then
+    echo "No authorized signers provided. Nothing to add."
+    return 0
+  fi
+
+  echo "Adding authorized signers to $ACCOUNT_ID on $NETWORK ..."
+  for signer in "${AUTHORIZED_SIGNERS[@]}"; do
+    if [[ ! $signer =~ ^[0-9a-f]{64}$ ]]; then
+      echo "Warning: Invalid signer format '$signer' (must be 64 lowercase hex characters), skipping..."
+      continue
+    fi
+
+    echo "Adding authorized signer: $signer"
+    $NEAR_CLI call $ACCOUNT_ID add_authorized_signer '{"public_key_hex":"'$signer'"}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --depositYocto 1
+    if [ $? -ne 0 ]; then
+      echo "Warning: Failed to add signer $signer (may already exist or invalid)"
+    else
+      echo "✓ Signer added successfully"
+    fi
+  done
+  echo "Authorized signer processing completed!"
+  echo ""
+}
+
+print_help() {
+  cat <<EOF
+RODIT Contract Deployment & Signer Management Script v${VERSION}
+================================================================
+
+USAGE:
+  ./deploy.sh help|--help|-h
+  ./deploy.sh deploy <account_id> [network] [rpc_url]
+  ./deploy.sh add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
+
+COMMANDS:
+  deploy       Build and deploy/upgrade the contract code for the specified account.
+               - Performs initial deployment if the contract is not initialized.
+               - Performs upgrade workflow if a contract already exists.
+               - Does not modify authorized signers.
+
+  add-signers  Adds one or more authorized Ed25519 signer public keys (64-char hex).
+               - Use implicit account IDs (the lowercase hex public key).
+               - Can be called at any time after deployment.
+
+ARGUMENTS:
+  account_id   NEAR account ID that owns the contract (e.g., roditcorp-com.near)
+  network      Optional network connection name (default: testnet)
+  rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
+  signerN      Authorized signer public keys to add (64 lowercase hex characters)
+
+NOTES:
+  • Authorized signers can also be added manually:
+      near call <account_id> add_authorized_signer '{"public_key_hex":"<64-char-hex>"}' \
+        --accountId <account_id> --networkId <network> --depositYocto 1
+  • Use 'near config show-connections' to list configured network connections.
+  • Provide a custom RPC URL to temporarily register a bespoke connection.
+
+EXAMPLES:
+  1. Initial deployment to testnet (no custom RPC):
+       ./deploy.sh deploy roditcorp-com.near
+
+  2. Upgrade existing contract on mainnet:
+       ./deploy.sh deploy roditcorp-com.near mainnet
+
+  3. Deploy using a custom RPC endpoint:
+       ./deploy.sh deploy roditcorp-com.near mainnet-custom https://rpc.mainnet.near.org
+
+  4. Add authorized signers on testnet (no custom RPC):
+       ./deploy.sh add-signers roditcorp-com.near testnet "" \
+         76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
+         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac
+
+  5. Add signers using default network (testnet) — network argument omitted:
+       ./deploy.sh add-signers roditcorp-com.near \
+         76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
+
+EOF
+}
 
 # Detect NEAR CLI location
 NEAR_CLI=$(which near 2>/dev/null || echo "")
@@ -18,72 +142,92 @@ fi
 
 # Default values
 NETWORK="testnet"
+CUSTOM_RPC_URL=""
 UPGRADE_DELAY_SECONDS=30  # 1/2 minutes
 POLLING_INTERVAL=10  # Check status every 10 seconds
 BUFFER_SECONDS=10  # Add a small buffer to the delay time
 # Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
 INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
 
-# Parse arguments
-if [ -z "$1" ]; then
-  echo "Error: Account ID is required"
-  echo "Usage: ./update_contract.sh <account_id> [network_connection] [custom_rpc_url]"
-  echo ""
-  echo "Available network connections (use 'near config show-connections' to see all):"
-  echo "  - testnet (default)"
-  echo "  - testnet-fastnear"
-  echo "  - mainnet"
-  echo "  - mainnet-fastnear"
-  echo "  - mainnet-lava"
-  echo ""
-  echo "To add a custom RPC endpoint:"
-  echo "  ./update_contract.sh roditcorp-com.near mainnet-custom https://near-mainnet.api.pagoda.co/rpc/v1/free"
-  echo ""
-  echo "This will create a temporary network connection 'mainnet-custom' with the specified RPC URL."
-  exit 1
+AUTHORIZED_SIGNERS=()
+
+COMMAND=$1
+shift || true
+
+case "$COMMAND" in
+  ""|"help"|"--help"|"-h")
+    print_help
+    exit 0
+    ;;
+  "deploy")
+    if [ -z "$1" ]; then
+      echo "Error: account_id is required for deploy command"
+      echo "Run './deploy.sh help' for usage information."
+      exit 1
+    fi
+    ACCOUNT_ID=$1
+    shift
+
+    if [ -n "$1" ]; then
+      NETWORK=$1
+      shift
+    fi
+
+    if [ -n "$1" ]; then
+      CUSTOM_RPC_URL=$1
+      shift
+    fi
+
+    if [ $# -gt 0 ]; then
+      echo "Warning: Extra arguments ignored for deploy command: $@"
+    fi
+    ;;
+  "add-signers")
+    if [ -z "$1" ]; then
+      echo "Error: account_id is required for add-signers command"
+      echo "Run './deploy.sh help' for usage information."
+      exit 1
+    fi
+    ACCOUNT_ID=$1
+    shift
+
+    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9a-f]{64}$ ]]; then
+      NETWORK=$1
+      shift
+    fi
+
+    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9a-f]{64}$ ]]; then
+      CUSTOM_RPC_URL=$1
+      shift
+    fi
+
+    AUTHORIZED_SIGNERS=("$@")
+    if [ ${#AUTHORIZED_SIGNERS[@]} -eq 0 ]; then
+      echo "Error: At least one signer public key must be provided for add-signers command"
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Error: Unknown command '$COMMAND'"
+    echo "Run './deploy.sh help' for usage information."
+    exit 1
+    ;;
+esac
+
+# Configure custom RPC connection if provided
+if [ -n "$CUSTOM_RPC_URL" ]; then
+  add_custom_network_connection
 fi
 
-ACCOUNT_ID=$1
-
-if [ ! -z "$2" ]; then
-  NETWORK=$2
-fi
-
-# Check if a custom RPC URL is provided (3rd argument)
-if [ ! -z "$3" ]; then
-  CUSTOM_RPC_URL=$3
-  
-  # Determine the base network name from the connection name
-  if [[ "$NETWORK" == mainnet* ]]; then
-    BASE_NETWORK="mainnet"
-  elif [[ "$NETWORK" == testnet* ]]; then
-    BASE_NETWORK="testnet"
-  else
-    BASE_NETWORK="$NETWORK"
-  fi
-  
-  echo "Adding custom network connection: $NETWORK"
-  echo "RPC URL: $CUSTOM_RPC_URL"
-  echo "Base network: $BASE_NETWORK"
-  
-  # Add the custom network connection
-  $NEAR_CLI config add-connection \
-    --network-name "$BASE_NETWORK" \
-    --connection-name "$NETWORK" \
-    --rpc-url "$CUSTOM_RPC_URL" \
-    --wallet-url "https://app.mynearwallet.com/" \
-    --explorer-transaction-url "https://explorer.near.org/transactions/"
-  
-  if [ $? -ne 0 ]; then
-    echo "Warning: Failed to add custom network connection. Proceeding with existing configuration."
-  fi
-  echo ""
+if [ "$COMMAND" = "add-signers" ]; then
+  add_signers_to_contract
+  exit 0
 fi
 
 echo "=== Contract Update Process ==="
 echo "Account ID: $ACCOUNT_ID"
 echo "Network Connection: $NETWORK"
-echo
+echo ""
 
 # Step 0: Check and ensure wasm32-unknown-unknown target is installed
 echo "Step 0: Checking Rust environment..."
@@ -132,6 +276,13 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" 
 
   echo "Initial deployment completed successfully!"
   echo "Contract is initialized and active."
+  echo
+  
+  echo "Authorized signers were not modified." 
+  echo "To add or update signers, run:"
+  echo "  ./deploy.sh add-signers $ACCOUNT_ID $NETWORK $CUSTOM_RPC_URL <signer1> [signer2] ..."
+  echo
+
   exit 0
 fi
 
@@ -231,4 +382,32 @@ echo
 
 echo "=== Contract Update Process Completed Successfully ==="
 echo "The contract has been updated and is now active."
+echo
+
+# Step 7: Add authorized signers (if provided)
+if [ ${#AUTHORIZED_SIGNERS[@]} -gt 0 ]; then
+  echo "Step 7: Adding authorized signers..."
+  for signer in "${AUTHORIZED_SIGNERS[@]}"; do
+    # Validate signer format (64 hex characters)
+    if [[ ! $signer =~ ^[0-9a-f]{64}$ ]]; then
+      echo "Warning: Invalid signer format '$signer' (must be 64 lowercase hex characters), skipping..."
+      continue
+    fi
+    
+    echo "Adding authorized signer: $signer"
+    $NEAR_CLI call $ACCOUNT_ID add_authorized_signer '{"public_key_hex":"'$signer'"}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --depositYocto 1
+    if [ $? -ne 0 ]; then
+      echo "Warning: Failed to add signer $signer (may already exist or invalid)"
+    else
+      echo "✓ Signer added successfully"
+    fi
+  done
+  echo "Authorized signers processing completed!"
+  echo
+else
+  echo "No authorized signers provided, skipping Step 7."
+  echo "You can add signers later with: near call $ACCOUNT_ID add_authorized_signer '{\"public_key_hex\":\"<64-char-hex>\"}'"
+  echo
+fi
+
 echo "You can now interact with the updated contract."

@@ -1,4 +1,4 @@
-![cableguard logo banner](./banner.png)
+![discernible logo banner](./discernible-banner.png)
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 

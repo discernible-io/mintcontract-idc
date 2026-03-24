@@ -792,6 +792,135 @@ All fields are strings on-chain for robust, uniform serialization:
 
 ---
 
+## Fee System Guide
+
+### Overview
+
+The RODiT contract implements a configurable fee system that allows the contract owner to adjust costs for initialization, contract operations, and storage. This section explains how the fee system works and how to manage it.
+
+### 1. Fee Structure (ContractFees)
+
+The contract stores three configurable fees in the `fees` field:
+
+```rust
+pub struct ContractFees {
+    pub initialize_fee: u128,        // Fee paid to implicit account
+    pub contract_fee_percentage: u128, // Percentage kept by contract (1-10%)
+    pub storage_cost_per_byte: u128,  // Cost per byte of storage
+}
+```
+
+### 2. Default Values (Set at Contract Initialization)
+
+When the contract is deployed via `init()`, these defaults are set:
+
+- **`initialize_fee`**: 0.0001 NEAR (100,000,000,000,000,000,000 yoctoNEAR)
+- **`contract_fee_percentage`**: 1%
+- **`storage_cost_per_byte`**: 0.00001 NEAR per byte
+
+### 3. How to Configure Fees (Owner-Only Functions)
+
+As the contract owner, you can update these fees using three functions:
+
+#### a) Update Initialize Fee
+
+```bash
+near call YOUR_CONTRACT.testnet set_initialize_fee \
+  '{"new_fee": "200000000000000000000"}' \
+  --accountId YOUR_OWNER_ACCOUNT.testnet \
+  --deposit 0.000000000000000000000001
+```
+
+- **Range**: 0.00001 NEAR to 1 NEAR
+- **Purpose**: Fee paid to the implicit account when minting
+
+#### b) Update Contract Fee Percentage
+
+```bash
+near call YOUR_CONTRACT.testnet set_contract_fee_percentage \
+  '{"new_percentage": "2"}' \
+  --accountId YOUR_OWNER_ACCOUNT.testnet \
+  --deposit 0.000000000000000000000001
+```
+
+- **Range**: 0% to 10%
+- **Purpose**: Percentage of remaining funds kept by the contract
+
+#### c) Update Storage Cost Per Byte
+
+```bash
+near call YOUR_CONTRACT.testnet set_storage_cost_per_byte \
+  '{"new_cost": "15000000000000000000"}' \
+  --accountId YOUR_OWNER_ACCOUNT.testnet \
+  --deposit 0.000000000000000000000001
+```
+
+- **Range**: 0.000001 NEAR to 0.0001 NEAR per byte
+- **Purpose**: Cost per byte of on-chain storage
+
+### 4. How to View Current Fees
+
+View current fee configuration:
+
+```bash
+near view YOUR_CONTRACT.testnet get_fees
+```
+
+Or use the comprehensive config view:
+
+```bash
+near view YOUR_CONTRACT.testnet get_config
+```
+
+### 5. How Fees Are Used in Minting
+
+When someone calls `rodit_mint()`, the `handle_account_fees_and_storage()` function uses these configurable values to calculate and distribute fees:
+
+1. **Storage Cost**: `storage_cost_per_byte × bytes_used × 1.1` (10% buffer)
+2. **Initialize Fee**: Transferred to the implicit account
+3. **Contract Fee**: `(remaining_after_storage_and_init) × contract_fee_percentage / 100`
+4. **Provider Fee**: Whatever remains goes to the minting fee account
+
+**Example Fee Calculation**:
+```
+Total deposit: 1.0 NEAR
+- Storage cost: 0.05 NEAR (based on token size)
+- Initialize fee: 0.0001 NEAR (configurable)
+- Contract fee: 0.00949 NEAR (1% of 0.949 NEAR remaining)
+- Provider fee: 0.94041 NEAR (remainder)
+```
+
+### 6. Security Features
+
+The fee system includes multiple security protections:
+
+- ✅ **Owner-only**: Only the contract owner can change fees
+- ✅ **Bounds checking**: Fees must be within safe ranges
+- ✅ **1 yoctoNEAR deposit**: Prevents misuse with function-call access keys
+- ✅ **Overflow protection**: All calculations check for overflows
+- ✅ **Transparent tracking**: All fee payments emit events for auditing
+
+### 7. Fee Management Best Practices
+
+**Initial Setup**:
+1. Deploy contract with default fees
+2. Monitor actual storage costs and usage patterns
+3. Adjust fees based on real-world data
+
+**Ongoing Management**:
+- Review fees periodically as NEAR price fluctuates
+- Keep `initialize_fee` low enough to encourage adoption
+- Set `contract_fee_percentage` to cover operational costs
+- Adjust `storage_cost_per_byte` if NEAR storage costs change
+
+**Before Changing Fees**:
+- Announce changes to users in advance
+- Use `get_config()` to verify current settings
+- Test new fee values on testnet first
+- Monitor the impact after changes
+
+---
+
 ## API Reference
 
 ### Fee Management Functions

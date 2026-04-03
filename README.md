@@ -261,14 +261,13 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near view your-account.near get_fees \
-  network-config mainnet-fastnear now
+near contract call-function as-read-only roditcorp-com.near get_fees \
+network-config mainnet now
 
 # View complete configuration
-near view your-account.near get_config \
+near contract call-function as-read-only roditcorp-com.near get_config \
   network-config mainnet-fastnear now
 ```
-
 ---
 
 ### Upgrading an Existing Contract

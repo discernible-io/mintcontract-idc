@@ -1190,6 +1190,193 @@ If upgrading from an older contract version:
 4. **Fees**: Start with default fees and adjust based on usage patterns
 5. **Upgrades**: Communicate upgrade proposals to users in advance
 6. **Configuration**: Use `get_config()` to verify correct contract configuration
+ 
+---
+
+## Facial `token_id` Encoding and Mapping
+
+This contract uses a compact facial `token_id` encoding for each minted token. The `token_id` is:
+
+- 12 lowercase ASCII letters (`a`–`z`)
+- Positions **0–10**: indices for 11 facial categories (in fixed order)
+- Position **11**: checksum letter
+
+### Encoding rules
+
+- For each category position `i` in `0..=10`:
+  - Letter `'a'` encodes index `0`, `'b'` encodes `1`, …, `'z'` encodes `25`.
+  - Index must be `<` the number of values in that category (see tables below).
+- Checksum letter at position `11`:
+  - Compute each index `idx_i = token_id[i] - 'a'` for `i = 0..10`.
+  - Compute `sum_indices = Σ idx_i`.
+  - `checksum_index = sum_indices % 26`.
+  - Expected checksum letter is `'a' + checksum_index`.
+
+### Category order (positions 0–10)
+
+0. `skin_tones`  
+1. `regional_bone_structure`  
+2. `face_shape`  
+3. `age_related`  
+4. `eyes`  
+5. `eyebrow_style`  
+6. `overall_structure`  
+7. `nose`  
+8. `lips`  
+9. `skin_conditions`  
+10. `hair_color`  
+
+### `skin_tones` (position 0, 19 values)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | a      | pale-skinned        |
+| 1     | b      | fair-skinned        |
+| 2     | c      | medium-skinned      |
+| 3     | d      | tan-skinned         |
+| 4     | e      | olive-skinned       |
+| 5     | f      | bronze-skinned      |
+| 6     | g      | dark-skinned        |
+| 7     | h      | ebony-skinned       |
+| 8     | i      | golden-skinned      |
+| 9     | j      | ivory-skinned       |
+| 10    | k      | peach-toned-skin    |
+| 11    | l      | rosy-skinned        |
+| 12    | m      | ruddy-skinned       |
+| 13    | n      | sallow-skinned      |
+| 14    | o      | ashen-skinned       |
+| 15    | p      | porcelain-skinned   |
+| 16    | q      | warm-toned-skin     |
+| 17    | r      | cool-toned-skin     |
+| 18    | s      | red-toned-skin      |
+
+### `regional_bone_structure` (position 1, 12 values)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | a      | Nordic           |
+| 1     | b      | Mediterranean    |
+| 2     | c      | Slavic           |
+| 3     | d      | East-Asian       |
+| 4     | e      | Southeast-Asian  |
+| 5     | f      | South-Asian      |
+| 6     | g      | West-African     |
+| 7     | h      | East-African     |
+| 8     | i      | Native-American  |
+| 9     | j      | Polynesian       |
+| 10    | k      | Celtic-features  |
+| 11    | l      | Turkish          |
+
+### `face_shape` (position 2, 15 values)
+
+| Index | Letter | Value                 |
+|-------|--------|-----------------------|
+| 0     | a      | oval-faced            |
+| 1     | b      | round-faced           |
+| 2     | c      | square-faced          |
+| 3     | d      | rectangular-faced     |
+| 4     | e      | heart-shaped-face     |
+| 5     | f      | diamond-shaped-face   |
+| 6     | g      | triangular-faced      |
+| 7     | h      | pear-shaped-face      |
+| 8     | i      | narrow-faced          |
+| 9     | j      | wide-faced            |
+| 10    | k      | angular-faced         |
+| 11    | l      | curved-faced          |
+| 12    | m      | asymmetrical-faced    |
+| 13    | n      | elongated-faced       |
+| 14    | o      | compact-faced         |
+
+### `age_related` (position 3, 5 values)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | a      | teenage-person   |
+| 1     | b      | young-adult-25   |
+| 2     | c      | middle-aged-50   |
+| 3     | d      | senior-65        |
+| 4     | e      | elderly-person   |
+
+### `eyes` (position 4, 10 values)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | a      | small-eyes          |
+| 1     | b      | large-eyes          |
+| 2     | c      | deep-set-eyes       |
+| 3     | d      | prominent-eyes      |
+| 4     | e      | close-set-eyes      |
+| 5     | f      | wide-set-eyes       |
+| 6     | g      | almond-shaped-eyes  |
+| 7     | h      | upturned-eyes       |
+| 8     | i      | downturned-eyes     |
+| 9     | j      | monolid-eyes        |
+
+### `eyebrow_style` (position 5, 6 values)
+
+| Index | Letter | Value             |
+|-------|--------|-------------------|
+| 0     | a      | thick-eyebrows    |
+| 1     | b      | thin-eyebrows     |
+| 2     | c      | arched-eyebrows   |
+| 3     | d      | straight-eyebrows |
+| 4     | e      | bushy-eyebrows    |
+| 5     | f      | sparse-eyebrows   |
+
+### `overall_structure` (position 6, 2 values)
+
+| Index | Letter | Value      |
+|-------|--------|------------|
+| 0     | a      | masculine  |
+| 1     | b      | feminine   |
+
+### `nose` (position 7, 6 values)
+
+| Index | Letter | Value          |
+|-------|--------|----------------|
+| 0     | a      | aquiline-nose  |
+| 1     | b      | button-nose    |
+| 2     | c      | Roman-nose     |
+| 3     | d      | snub-nose      |
+| 4     | e      | flared-nose    |
+| 5     | f      | pinched-nose   |
+
+### `lips` (position 8, 5 values)
+
+| Index | Letter | Value           |
+|-------|--------|-----------------|
+| 0     | a      | thin-lips       |
+| 1     | b      | full-lips       |
+| 2     | c      | pouty-lips      |
+| 3     | d      | defined-lips    |
+| 4     | e      | bow-shaped-lips |
+
+### `skin_conditions` (position 9, 6 values)
+
+| Index | Letter | Value    |
+|-------|--------|----------|
+| 0     | a      | freckled |
+| 1     | b      | spotted  |
+| 2     | c      | scarred  |
+| 3     | d      | lined    |
+| 4     | e      | wrinkled |
+| 5     | f      | clear    |
+
+### `hair_color` (position 10, 11 values)
+
+| Index | Letter | Value                 |
+|-------|--------|-----------------------|
+| 0     | a      | black-hair            |
+| 1     | b      | dark-brown-hair       |
+| 2     | c      | brown-hair            |
+| 3     | d      | light-brown-hair      |
+| 4     | e      | blonde-hair           |
+| 5     | f      | platinum-blonde-hair  |
+| 6     | g      | red-hair              |
+| 7     | h      | auburn-hair           |
+| 8     | i      | gray-hair             |
+| 9     | j      | white-hair            |
+| 10    | k      | silver-hair           |
 
 ---
 

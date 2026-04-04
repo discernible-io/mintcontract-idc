@@ -316,3 +316,173 @@ pub fn validate_token_metadata(
     
     Ok(())
 }
+
+// Facial token_id encoding: 11 positional category indices (letters) + 1 checksum letter
+// Total length: 12 characters
+const FACE_TOKEN_ID_LENGTH: usize = 12;
+const SKIN_TONES_VALUE_COUNT: usize = 19;
+const REGIONAL_BONE_STRUCTURE_VALUE_COUNT: usize = 12;
+const FACE_SHAPE_VALUE_COUNT: usize = 15;
+const AGE_RELATED_VALUE_COUNT: usize = 5;
+const EYES_VALUE_COUNT: usize = 10;
+const EYEBROW_STYLE_VALUE_COUNT: usize = 6;
+const OVERALL_STRUCTURE_VALUE_COUNT: usize = 2;
+const NOSE_VALUE_COUNT: usize = 6;
+const LIPS_VALUE_COUNT: usize = 5;
+const SKIN_CONDITIONS_VALUE_COUNT: usize = 6;
+const HAIR_COLOR_VALUE_COUNT: usize = 11;
+
+fn face_value_char_to_index(c: char) -> Option<usize> {
+    match c {
+        'a'..='z' => Some((c as u8 - b'a') as usize),
+        _ => None,
+    }
+}
+
+fn validate_face_position(
+    token_id: &str,
+    pos: usize,
+    max_values: usize,
+    category_name: &str,
+) -> Result<usize, String> {
+    let bytes = token_id.as_bytes();
+    let value_char = bytes[pos] as char;
+
+    let index = face_value_char_to_index(value_char).ok_or_else(|| {
+        format!(
+            "Invalid value code '{}' at position {} for {} (expected 'a'-'z')",
+            value_char,
+            pos,
+            category_name
+        )
+    })?;
+
+    if index >= max_values {
+        return Err(format!(
+            "Value code '{}' at position {} for {} is out of range (max index {})",
+            value_char,
+            pos,
+            category_name,
+            max_values - 1
+        ));
+    }
+
+    Ok(index)
+}
+
+pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
+    if token_id.len() != FACE_TOKEN_ID_LENGTH {
+        return Err(format!(
+            "Invalid token_id length: expected {} characters, got {}",
+            FACE_TOKEN_ID_LENGTH,
+            token_id.len()
+        ));
+    }
+
+    if !token_id.is_ascii() {
+        return Err("token_id must contain only ASCII characters".to_string());
+    }
+
+    // Validate each of the 11 positional category indices (letters a-z)
+    let idx_skin_tones = validate_face_position(
+        token_id,
+        0,
+        SKIN_TONES_VALUE_COUNT,
+        "skin_tones",
+    )?;
+    let idx_regional_bone = validate_face_position(
+        token_id,
+        1,
+        REGIONAL_BONE_STRUCTURE_VALUE_COUNT,
+        "regional_bone_structure",
+    )?;
+    let idx_face_shape = validate_face_position(
+        token_id,
+        2,
+        FACE_SHAPE_VALUE_COUNT,
+        "face_shape",
+    )?;
+    let idx_age_related = validate_face_position(
+        token_id,
+        3,
+        AGE_RELATED_VALUE_COUNT,
+        "age_related",
+    )?;
+    let idx_eyes = validate_face_position(
+        token_id,
+        4,
+        EYES_VALUE_COUNT,
+        "eyes",
+    )?;
+    let idx_eyebrow_style = validate_face_position(
+        token_id,
+        5,
+        EYEBROW_STYLE_VALUE_COUNT,
+        "eyebrow_style",
+    )?;
+    let idx_overall_structure = validate_face_position(
+        token_id,
+        6,
+        OVERALL_STRUCTURE_VALUE_COUNT,
+        "overall_structure",
+    )?;
+    let idx_nose = validate_face_position(
+        token_id,
+        7,
+        NOSE_VALUE_COUNT,
+        "nose",
+    )?;
+    let idx_lips = validate_face_position(
+        token_id,
+        8,
+        LIPS_VALUE_COUNT,
+        "lips",
+    )?;
+    let idx_skin_conditions = validate_face_position(
+        token_id,
+        9,
+        SKIN_CONDITIONS_VALUE_COUNT,
+        "skin_conditions",
+    )?;
+    let idx_hair_color = validate_face_position(
+        token_id,
+        10,
+        HAIR_COLOR_VALUE_COUNT,
+        "hair_color",
+    )?;
+
+    // Compute checksum as sum of all indices modulo 26
+    let sum_indices: usize = idx_skin_tones
+        + idx_regional_bone
+        + idx_face_shape
+        + idx_age_related
+        + idx_eyes
+        + idx_eyebrow_style
+        + idx_overall_structure
+        + idx_nose
+        + idx_lips
+        + idx_skin_conditions
+        + idx_hair_color;
+    let checksum_index = sum_indices % 26;
+    let expected_checksum_char = (b'a' + checksum_index as u8) as char;
+
+    let bytes = token_id.as_bytes();
+    let checksum_char = bytes[11] as char;
+
+    let _ = face_value_char_to_index(checksum_char).ok_or_else(|| {
+        format!(
+            "Invalid checksum character '{}' at position 11 (expected 'a'-'z')",
+            checksum_char
+        )
+    })?;
+
+    if checksum_char != expected_checksum_char {
+        return Err(format!(
+            "Invalid checksum: expected '{}' but found '{}'",
+            expected_checksum_char,
+            checksum_char
+        ));
+    }
+
+    Ok(())
+}

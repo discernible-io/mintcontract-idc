@@ -44,7 +44,7 @@ mod events;
 mod storage;
 mod upgrade;
 
-use token_validation::validate_token_metadata;
+use token_validation::{validate_token_metadata, validate_face_token_id};
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
@@ -351,6 +351,11 @@ impl Contract {
         // If validation fails, panic with the error message
         if let Err(validation_error) = validation_result {
             require!(false, format!("Token metadata validation failed: {}", validation_error));
+        }
+        
+        let face_id_validation_result = validate_face_token_id(&token_id);
+        if let Err(validation_error) = face_id_validation_result {
+            require!(false, format!("Token ID validation failed: {}", validation_error));
         }
         
         // Use the provided fee_data_json directly instead of constructing it

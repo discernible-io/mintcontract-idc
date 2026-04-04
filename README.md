@@ -2,7 +2,7 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: Discernible-near.org-20260404  
+**Contract Version**: identityclaw-com.near-20260404  
 **Example Account**: `identityclaw-com.near`  
 **Controlling Domain**: `identityclaw.com`
 
@@ -14,7 +14,7 @@
 - [Quick Start](#quick-start)
 - [Contract Architecture](#contract-architecture)
 - [Token Metadata Guide](#token-metadata-guide)
-  - [Distinguished Name Format](#distinguished-name-format)
+- [Distinguished Name Format](#distinguished-name-format)
 - [Security Features](#security-features)
 - [API Reference](#api-reference)
 - [Deployment Guide](#deployment-guide)
@@ -1195,7 +1195,7 @@ All events use this envelope:
 
 When CONTRACT_NAME=identityclaw-com.near
 Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "identityclaw-com";
+pub const CONTRACT_NAME: &str = "identityclaw.com";
 Where identityclaw.com is the controlling domain for the contract.
 
 ### Deployment Checklist

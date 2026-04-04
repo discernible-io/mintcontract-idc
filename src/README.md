@@ -433,7 +433,7 @@ pub struct Contract {
 Defined in `src/lib.rs`:
 
 - `RODIT_METADATA_SPEC`: `"Discernible-near.org-20260404"` - Contract version
-- `CONTRACT_NAME`: `"20260404.identityclaw.com"` - Issuer identifier
+- `CONTRACT_NAME`: `"identityclaw-com.near"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
@@ -1195,7 +1195,7 @@ All events use this envelope:
 
 When CONTRACT_NAME=identityclaw-com.near
 Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "20260404.identityclaw.com";
+pub const CONTRACT_NAME: &str = "identityclaw-com";
 Where identityclaw.com is the controlling domain for the contract.
 
 ### Deployment Checklist

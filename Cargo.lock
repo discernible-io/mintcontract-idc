@@ -761,6 +761,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "identityclaw-near"
+version = "0.1.0"
+dependencies = [
+ "base64 0.13.1",
+ "borsh 0.9.3",
+ "ed25519-dalek 1.0.1",
+ "lazy_static",
+ "miniserde",
+ "near-abi",
+ "near-sdk",
+ "rand 0.8.5",
+ "regex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1518,25 +1537,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "rodit-near"
-version = "0.1.0"
-dependencies = [
- "base64 0.13.1",
- "borsh 0.9.3",
- "ed25519-dalek 1.0.1",
- "lazy_static",
- "miniserde",
- "near-abi",
- "near-sdk",
- "rand 0.8.5",
- "regex",
- "schemars",
- "serde",
- "serde_json",
- "sha2 0.10.9",
 ]
 
 [[package]]

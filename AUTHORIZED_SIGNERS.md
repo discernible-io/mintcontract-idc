@@ -1,8 +1,8 @@
 # Authorized Signers for RODiT Contract
 
-**Contract**: `roditcorp-com.near`  
+**Contract**: `identityclaw-com.near`  
 **Network**: NEAR Mainnet  
-**Last Updated**: November 5, 2025
+**Last Updated**: November 5, 2026
 
 ---
 
@@ -24,9 +24,9 @@ The following Ed25519 public keys are authorized to sign fee data for minting op
 
 ## Contract Configuration
 
-- **Owner**: `roditcorp-com.near`
+- **Owner**: `identityclaw-com.near`
 - **Status**: Active
-- **Version**: RODiTCorp-near.org-20251027
+- **Version**: Discernible-near.org-20260404
 - **Total Authorized Signers**: 2
 
 ### Fee Configuration
@@ -59,7 +59,7 @@ The following Ed25519 public keys are authorized to sign fee data for minting op
 ### View Current Signers
 
 ```bash
-near view roditcorp-com.near view_authorized_signers --network-id mainnet
+near view identityclaw-com.near view_authorized_signers --network-id mainnet
 ```
 
 Or use the provided script:
@@ -70,9 +70,9 @@ Or use the provided script:
 ### Add a New Signer
 
 ```bash
-near call roditcorp-com.near add_authorized_signer \
+near call identityclaw-com.near add_authorized_signer \
   '{"public_key_hex": "YOUR_64_CHAR_HEX_PUBLIC_KEY"}' \
-  --accountId roditcorp-com.near \
+  --accountId identityclaw-com.near \
   --depositYocto 1 \
   --gas 300000000000000 \
   --network-id mainnet
@@ -86,9 +86,9 @@ near call roditcorp-com.near add_authorized_signer \
 ### Remove a Signer
 
 ```bash
-near call roditcorp-com.near remove_authorized_signer \
+near call identityclaw-com.near remove_authorized_signer \
   '{"public_key_hex": "YOUR_64_CHAR_HEX_PUBLIC_KEY"}' \
-  --accountId roditcorp-com.near \
+  --accountId identityclaw-com.near \
   --depositYocto 1 \
   --gas 300000000000000 \
   --network-id mainnet
@@ -119,20 +119,20 @@ near call roditcorp-com.near remove_authorized_signer \
 ### Contract Configuration
 ```bash
 # View complete contract configuration
-near view roditcorp-com.near get_config --network-id mainnet
+near view identityclaw-com.near get_config --network-id mainnet
 
 # View contract status
-near view roditcorp-com.near get_contract_status --network-id mainnet
+near view identityclaw-com.near get_contract_status --network-id mainnet
 
 # View fee configuration
-near view roditcorp-com.near get_fees --network-id mainnet
+near view identityclaw-com.near get_fees --network-id mainnet
 ```
 
 ---
 
 ## References
 
-- **Contract Source**: `/home/icarus39/mintrscontractapi-rodit/src/lib.rs`
+- **Contract Source**: `/home/icarus39/mintidclawcontractapi-rodit/src/lib.rs`
 - **Signature Verification**: Lines 1167-1388 in `src/lib.rs`
 - **Signer Management**: Lines 904-1121 in `src/lib.rs`
 - **Add Signers Script**: `./add_signers.sh`

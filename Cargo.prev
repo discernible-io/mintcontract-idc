@@ -1,8 +1,8 @@
 [package]
-name = "rodit-near"
+name = "identityclaw-near"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@rodit.org>"]
+authors = ["Your Name <your.email@identityclaw.com>"]
 
 [lib]
 crate-type = ["cdylib"]

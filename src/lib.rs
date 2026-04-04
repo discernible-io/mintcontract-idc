@@ -26,7 +26,7 @@
 //! 
 //! ## Version
 //! 
-//! Contract version: RODiTCorp-near.org-20251027
+//! Contract version: Discernible-near.org-20260404
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
@@ -44,13 +44,13 @@ mod events;
 mod storage;
 mod upgrade;
 
-use token_validation::{validate_token_metadata, validate_face_token_id};
+use token_validation::{validate_token_metadata, validate_face_token_id, validate_userselected_dn};
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODiTCorp-near.org-20251027";
+pub const RODIT_METADATA_SPEC: &str = "Discernible-near.org-20260404";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const CONTRACT_NAME: &str = "20251027.rodit.org";
+pub const CONTRACT_NAME: &str = "identityclaw-com";
 
 // Default fee values - can be overridden by contract owner
 pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
@@ -76,7 +76,7 @@ pub const DID_WBA_JSON_LD: &str = r#"{
   "@context": {
     "id": "@id",
     "type": "@type",
-    "rodit": "https://rodit.org/ns/rodit#",
+    "rodit": "https://identityclaw.com/ns/rodit#",
     "token_id": "rodit:token_id",
     "allowed_cidr": "rodit:allowed_cidr",
     "allowed_iso3166list": "rodit:allowed_iso3166list",
@@ -94,7 +94,15 @@ pub const DID_WBA_JSON_LD: &str = r#"{
     "controller": "rodit:serviceprovider_id",
     "serviceprovider_signature": "rodit:serviceprovider_signature",
     "userselected_dn": "rodit:userselected_dn",
-    "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" }
+    "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" },
+    "dn_NNSWF": "rodit:dn_nameNotSharedWithFamily",
+    "dn_NSWF": "rodit:dn_nameSharedWithFamily",
+    "dn_URI": { "@id": "rodit:dn_universalResourceIdentifier", "@type": "@id" },
+    "dn_taxRes": "rodit:dn_taxResidence",
+    "dn_inceptDateTime": { "@id": "rodit:dn_inceptDateTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime" },
+    "dn_inceptPlace": "rodit:dn_inceptPlace",
+    "dn_taxPayer": "rodit:dn_taxPayerCode",
+    "dn_address": "rodit:dn_contactAddress"
   }
 }"#;
 
@@ -356,6 +364,12 @@ impl Contract {
         let face_id_validation_result = validate_face_token_id(&token_id);
         if let Err(validation_error) = face_id_validation_result {
             require!(false, format!("Token ID validation failed: {}", validation_error));
+        }
+        
+        // Validate userselected_dn format if provided
+        let dn_validation_result = validate_userselected_dn(&metadata.userselected_dn);
+        if let Err(validation_error) = dn_validation_result {
+            require!(false, format!("DN validation failed: {}", validation_error));
         }
         
         // Use the provided fee_data_json directly instead of constructing it

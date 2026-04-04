@@ -2,9 +2,9 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: RODiTCorp-near.org-20251027  
-**Example Account**: `roditcorp-com.near`  
-**Controlling Domain**: `rodit.org`
+**Contract Version**: Discernible-near.org-20260404  
+**Example Account**: `identityclaw-com.near`  
+**Controlling Domain**: `identityclaw.com`
 
 ---
 
@@ -14,6 +14,7 @@
 - [Quick Start](#quick-start)
 - [Contract Architecture](#contract-architecture)
 - [Token Metadata Guide](#token-metadata-guide)
+  - [Distinguished Name Format](#distinguished-name-format)
 - [Security Features](#security-features)
 - [API Reference](#api-reference)
 - [Deployment Guide](#deployment-guide)
@@ -83,7 +84,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd mintrscontractapi-rodit
+cd mintidclawcontractapi-rodit
 
 # Build the contract (this creates the WASM file)
 cargo near build non-reproducible-wasm --no-abi
@@ -261,11 +262,11 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near contract call-function as-read-only roditcorp-com.near get_fees \
+near contract call-function as-read-only identityclaw-com.near get_fees \
 network-config mainnet now
 
 # View complete configuration
-near contract call-function as-read-only roditcorp-com.near get_config \
+near contract call-function as-read-only identityclaw-com.near get_config \
   network-config mainnet-fastnear now
 ```
 ---
@@ -431,8 +432,8 @@ pub struct Contract {
 
 Defined in `src/lib.rs`:
 
-- `RODIT_METADATA_SPEC`: `"RODiTCorp-near.org-20251027"` - Contract version
-- `CONTRACT_NAME`: `"20251027.rodit.org"` - Issuer identifier
+- `RODIT_METADATA_SPEC`: `"Discernible-near.org-20260404"` - Contract version
+- `CONTRACT_NAME`: `"identityclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
@@ -459,7 +460,7 @@ pub struct TokenMetadata {
     pub maxrq_window: String,                 // Time window for limits
     pub webhook_url: String,                  // Webhook endpoint
     pub webhook_cidr: String,                 // Webhook IP restrictions
-    pub userselected_dn: String,              // User-selected display name
+    pub userselected_dn: String,              // User-selected Distinguished Name (RFC 2253-style)
     pub allowed_cidr: String,                 // Allowed IP ranges
     pub allowed_iso3166list: String,          // Allowed countries
     pub jwt_duration: String,                 // JWT validity period
@@ -597,8 +598,8 @@ pub struct TokenMetadata {
 
 ### Contract Constants
 
-- `RODIT_METADATA_SPEC = "RODiTCorp-near.org-20251027"`
-- Issuer URL: `"20251027.rodit.org"`
+- `RODIT_METADATA_SPEC = "Discernible-near.org-20260404"`
+- Issuer URL: `"identityclaw-com"`
 
 ---
 
@@ -615,7 +616,7 @@ All fields are strings on-chain for robust, uniform serialization:
 - **`maxrq_window`**: Integer as string representing the rate-window seconds (0 = unlimited window)
 - **`webhook_url`**: HTTPS endpoint to receive event callbacks
 - **`webhook_cidr`**: CIDR(s) allowed to deliver webhooks
-- **`userselected_dn`**: Optional user-specified display name / DN
+- **`userselected_dn`**: User-selected Distinguished Name in RFC 2253-style format (see [Distinguished Name Format](#distinguished-name-format))
 - **`allowed_cidr`**: CIDR(s) allowed for runtime usage (environment-bound)
 - **`allowed_iso3166list`**: JSON string, e.g. `{"allow":["WLD"]}` indicating country policy
 - **`jwt_duration`**: Integer as string; JWT validity seconds (0 = unlimited)
@@ -623,6 +624,84 @@ All fields are strings on-chain for robust, uniform serialization:
 - **`subjectuniqueidentifier_url`**: URL pointing to a stable identity/subject descriptor for the token's subject
 - **`serviceprovider_id`**: An internal identifier string for the issuing service
 - **`serviceprovider_signature`**: Issuer's signature over fee/issuance data
+
+### Distinguished Name Format
+
+The `userselected_dn` field uses an RFC 2253-style format with custom attributes. This allows users to encode identity and contact information in a structured, validated format.
+
+#### Format
+
+```
+NNSWF=GivenName,NSWF=FamilyName,URI=scheme:authority:identifier,taxRes=XX,...
+```
+
+#### Supported Attributes
+
+| Attribute | Required | Description | Format | Example |
+|-----------|----------|-------------|--------|---------|
+| **NNSWF** | **Yes** | Name Not Shared With Family (given name) | UTF-8, 1-50 chars | `John` |
+| NSWF | No | Name Shared With Family (surname) | UTF-8, max 50 chars | `Smith` |
+| URI | No | Generic identifier | `scheme:authority:identifier` | `twitter:x.com:user` |
+| taxRes | No | Tax residence country | ISO 3166-1 alpha-2 | `US`, `GB`, `DE` |
+| inceptDateTime | No | Incept date/time | GeneralizedTime (YYYYMMDDHHMMSSZ) | `19900315120000Z` |
+| inceptPlace | No | Incept place | Plus Code | `9F4MGCH7+R6` |
+| taxPayer | No | Tax payer ID | Alphanumeric, max 30 chars | `123-45-6789` |
+| address | No | Contact address | Plus Code | `87G8Q23F+XF` |
+
+#### URI Attribute Format
+
+The `URI` attribute uses a flexible `scheme:authority:identifier` format to represent identifiers across different systems:
+
+| Type | Example |
+|------|---------|
+| Twitter/X | `twitter:x.com:username` |
+| Email | `email:gmail.com:user` |
+| Telegram | `telegram:telegram.com:username` |
+| Phone | `phone:ES:34683493049` |
+| LinkedIn | `linkedin:linkedin.com:userid` |
+| GitHub | `github:github.com:username` |
+
+#### Plus Code Format
+
+Plus Codes (Open Location Codes) are used for `inceptPlace` and `address` attributes:
+- Format: `8FVC9G8F+6W` (area code + local code)
+- Reference: https://plus.codes/
+
+#### GeneralizedTime Format
+
+The `inceptDateTime` uses X.509 GeneralizedTime format:
+- Format: `YYYYMMDDHHMMSSZ`
+- Example: `19900315120000Z` (March 15, 1990 at 12:00:00 UTC)
+
+#### Escaping Special Characters
+
+RFC 2253 special characters must be escaped with backslash:
+- Characters: `, + " \ < > ; = #`
+- Example: `NSWF=Smith\, Jr.` for surname "Smith, Jr."
+
+#### Examples
+
+**Minimal (required field only):**
+```
+NNSWF=Alice
+```
+
+**With contact information:**
+```
+NNSWF=John,NSWF=Smith,URI=email:gmail.com:jsmith,taxRes=US
+```
+
+**Full format:**
+```
+NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxPayer=123-45-6789,address=87G8Q23F+XF
+```
+
+#### Validation Rules
+
+- Maximum total DN length: 1024 bytes
+- Only `NNSWF` is required; all other attributes are optional
+- Unknown attributes are allowed for extensibility
+- Empty DN string is valid (no identity information provided)
 
 ### Token Profiles
 
@@ -635,7 +714,7 @@ All fields are strings on-chain for robust, uniform serialization:
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=roditcorp-com.near;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=identityclaw-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -663,18 +742,18 @@ All fields are strings on-chain for robust, uniform serialization:
 {
   "openapijson_url": "https://root.internal.example/api-docs",
   "not_after": "1970-01-01",
-  "not_before": "2025-08-29",
+  "not_before": "2026-08-29",
   "max_requests": "0",
   "maxrq_window": "0",
   "webhook_url": "https://not-set.example.com/webhook",
   "webhook_cidr": "0.0.0.0/0",
-  "userselected_dn": "",
+  "userselected_dn": "NNSWF=RootAdmin",
   "allowed_cidr": "0.0.0.0/0",
   "allowed_iso3166list": "{\"allow\":[\"WLD\"]}",
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=identityclaw-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -684,18 +763,18 @@ All fields are strings on-chain for robust, uniform serialization:
 {
   "openapijson_url": "https://api.public.example/api-docs",
   "not_after": "1970-01-01",
-  "not_before": "2025-08-29",
+  "not_before": "2026-08-29",
   "max_requests": "100000",
   "maxrq_window": "86400",
   "webhook_url": "https://not-set.example.com/webhook",
   "webhook_cidr": "203.0.113.0/24",
-  "userselected_dn": "example-client",
+  "userselected_dn": "NNSWF=ClientApp,URI=email:example.com:client,taxRes=US",
   "allowed_cidr": "203.0.113.0/24",
   "allowed_iso3166list": "{\"allow\":[\"WLD\"]}",
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=identityclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -1061,7 +1140,7 @@ All events use this envelope:
 ```json
 {
   "standard": "PENDING nepXXX",
-  "version": "RODiTCorp-near.org-20251027",
+  "version": "Discernible-near.org-20260404",
   "event": "<event_name>",
   "data": [ { /* event-specific object */ } ]
 }
@@ -1104,20 +1183,20 @@ All events use this envelope:
 
 2. **Deploy code to testnet**:
    ```bash
-   near deploy --accountId roditcorp-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
+   near deploy --accountId identityclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
    ```
 
 3. **Initialize the contract**:
    ```bash
-   near call roditcorp-com.near init '{"owner_id":"roditcorp-com.near","metadata":null}' --accountId roditcorp-com.near
+   near call identityclaw-com.near init '{"owner_id":"identityclaw-com.near","metadata":null}' --accountId identityclaw-com.near
    ```
 
 ### Notes
 
-When CONTRACT_NAME=roditcorp-com.near
+When CONTRACT_NAME=identityclaw-com.near
 Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "20251027.rodit.org";
-Where rodit.org is the controlling domain for the contract.
+pub const CONTRACT_NAME: &str = "identityclaw-com";
+Where identityclaw.com is the controlling domain for the contract.
 
 ### Deployment Checklist
 
@@ -1167,7 +1246,7 @@ If upgrading from an older contract version:
 ## Licensing & Compliance
 
 - All rights reserved.
-- For trials/evaluation, contact: **rodit@rodit.org**
+- For trials/evaluation, contact: **rodit@identityclaw.com**
 
 ---
 
@@ -1380,4 +1459,4 @@ This contract uses a compact facial `token_id` encoding for each minted token. T
 
 ---
 
-**Last Updated**: 2025-10-02
+**Last Updated**: 2026-10-02

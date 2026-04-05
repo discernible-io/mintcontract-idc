@@ -2,7 +2,7 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: identyclaw-com.near-20260404  
+**Contract Version**: Discernible-identyclaw-com-20260404  
 **Example Account**: `identyclaw-com.near`  
 **Controlling Domain**: `identityclaw.com`
 
@@ -632,7 +632,7 @@ The `userselected_dn` field uses an RFC 2253-style format with custom attributes
 #### Format
 
 ```
-NNSWF=GivenName,NSWF=FamilyName,URI=scheme:authority:identifier,taxRes=XX,...
+NNSWF=NameNotSharedWithFamily,NSWF=NameSharedWithFamily,ContactURI=scheme:authority:identifier,taxRes=XX,...
 ```
 
 #### Supported Attributes
@@ -641,16 +641,19 @@ NNSWF=GivenName,NSWF=FamilyName,URI=scheme:authority:identifier,taxRes=XX,...
 |-----------|----------|-------------|--------|---------|
 | **NNSWF** | **Yes** | Name Not Shared With Family (given name) | UTF-8, 1-50 chars | `John` |
 | NSWF | No | Name Shared With Family (surname) | UTF-8, max 50 chars | `Smith` |
-| URI | No | Generic identifier | `scheme:authority:identifier` | `twitter:x.com:user` |
+| ContactURI | No | Generic identifier | `scheme:authority:identifier` | `twitter:x.com:user` |
 | taxRes | No | Tax residence country | ISO 3166-1 alpha-2 | `US`, `GB`, `DE` |
 | inceptDateTime | No | Incept date/time | GeneralizedTime (YYYYMMDDHHMMSSZ) | `19900315120000Z` |
 | inceptPlace | No | Incept place | Plus Code | `9F4MGCH7+R6` |
 | taxPayer | No | Tax payer ID | Alphanumeric, max 30 chars | `123-45-6789` |
 | address | No | Contact address | Plus Code | `87G8Q23F+XF` |
+| Creature | No | Descriptive label | Printable UTF-8, max 50 chars | `Friendly Being` |
+| AvatarURL | No | Avatar media URL | HTTPS URL | `https://example.com/avatar.png` |
+| EmojiURL | No | Emoji asset URL | HTTPS URL | `https://example.com/emoji.svg` |
 
-#### URI Attribute Format
+#### ContactURI Attribute Format
 
-The `URI` attribute uses a flexible `scheme:authority:identifier` format to represent identifiers across different systems:
+The `ContactURI` attribute uses a flexible `scheme:authority:identifier` format to represent identifiers across different systems:
 
 | Type | Example |
 |------|---------|
@@ -688,12 +691,12 @@ NNSWF=Alice
 
 **With contact information:**
 ```
-NNSWF=John,NSWF=Smith,URI=email:gmail.com:jsmith,taxRes=US
+NNSWF=John,NSWF=Smith,ContactURI=email:gmail.com:jsmith,taxRes=US
 ```
 
 **Full format:**
 ```
-NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxPayer=123-45-6789,address=87G8Q23F+XF
+NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxPayer=123-45-6789,address=87G8Q23F+XF,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg
 ```
 
 #### Validation Rules
@@ -768,7 +771,7 @@ NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315
   "maxrq_window": "86400",
   "webhook_url": "https://not-set.example.com/webhook",
   "webhook_cidr": "203.0.113.0/24",
-  "userselected_dn": "NNSWF=ClientApp,URI=email:example.com:client,taxRes=US",
+  "userselected_dn": "NNSWF=ClientApp,ContactURI=email:example.com:client,taxRes=US,Creature=Friendly Bot",
   "allowed_cidr": "203.0.113.0/24",
   "allowed_iso3166list": "{\"allow\":[\"WLD\"]}",
   "jwt_duration": "3600",

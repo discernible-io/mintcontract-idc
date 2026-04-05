@@ -97,12 +97,15 @@ pub const DID_WBA_JSON_LD: &str = r#"{
     "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" },
     "dn_NNSWF": "rodit:dn_nameNotSharedWithFamily",
     "dn_NSWF": "rodit:dn_nameSharedWithFamily",
-    "dn_URI": { "@id": "rodit:dn_universalResourceIdentifier", "@type": "@id" },
+    "dn_ContactURI": { "@id": "rodit:dn_contactUri", "@type": "@id" },
     "dn_taxRes": "rodit:dn_taxResidence",
     "dn_inceptDateTime": { "@id": "rodit:dn_inceptDateTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime" },
     "dn_inceptPlace": "rodit:dn_inceptPlace",
     "dn_taxPayer": "rodit:dn_taxPayerCode",
-    "dn_address": "rodit:dn_contactAddress"
+    "dn_address": "rodit:dn_contactAddress",
+    "dn_Creature": "rodit:dn_creatureDescriptor",
+    "dn_AvatarURL": { "@id": "rodit:dn_avatarUrl", "@type": "@id" },
+    "dn_EmojiURL": { "@id": "rodit:dn_emojiUrl", "@type": "@id" }
   }
 }"#;
 

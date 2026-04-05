@@ -491,7 +491,8 @@ pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
 // Custom Distinguished Name (DN) Validation
 // =============================================================================
 // Supports RFC 2253-style DN format with custom attributes:
-//   NNSWF, NSWF, URI, taxRes, inceptDateTime, inceptPlace, taxPayer, address
+//   NNSWF, NSWF, ContactURI, taxRes, inceptDateTime, inceptPlace, taxPayer,
+//   address, Creature, AvatarURL, EmojiURL
 // =============================================================================
 
 lazy_static! {
@@ -513,12 +514,15 @@ lazy_static! {
 pub const DN_KNOWN_ATTRIBUTES: &[&str] = &[
     "NNSWF",          // Name Not Shared With Family (given name)
     "NSWF",           // Name Shared With Family (surname)
-    "URI",            // Generic URI identifier (scheme:authority:identifier)
+    "ContactURI",     // Generic URI identifier (scheme:authority:identifier)
     "taxRes",         // Tax residence country (ISO 3166-1 alpha-2)
     "inceptDateTime", // Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
     "inceptPlace",    // Incept place (Plus Code)
     "taxPayer",       // Tax payer ID (country-specific format)
     "address",        // Contact address (Plus Code)
+    "Creature",       // Creature descriptor
+    "AvatarURL",      // HTTPS URL to avatar media
+    "EmojiURL",       // HTTPS URL to emoji asset
 ];
 
 /// Parsed DN attribute
@@ -623,11 +627,11 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
                 return Err(format!("NSWF must be at most {} characters", MAX_NAME_LENGTH));
             }
         }
-        "URI" => {
+        "ContactURI" => {
             // Generic URI format: scheme:authority:identifier
             // Examples: twitter:x.com:emusk, email:gmail.com:user, phone:ES:34683493049
             if !value.is_empty() && !URI_REGEX.is_match(value) {
-                return Err("URI must be format scheme:authority:identifier (e.g., twitter:x.com:user)".to_string());
+                return Err("ContactURI must be format scheme:authority:identifier (e.g., twitter:x.com:user)".to_string());
             }
         }
         "taxRes" => {
@@ -693,6 +697,23 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
                 return Err("address must be Plus Code format (e.g., 87G8Q23F+XF)".to_string());
             }
         }
+        "Creature" => {
+            // Creature descriptor: 1-50 printable characters (excluding control)
+            if !value.is_empty() {
+                if value.chars().count() > 50 {
+                    return Err("Creature must be at most 50 characters".to_string());
+                }
+                if value.chars().any(|c| c.is_control()) {
+                    return Err("Creature must not contain control characters".to_string());
+                }
+            }
+        }
+        "AvatarURL" | "EmojiURL" => {
+            // HTTPS URLs validated using existing metadata URL validator
+            if !value.is_empty() && !validate_url(value) {
+                return Err(format!("{} must be a valid HTTPS URL", name));
+            }
+        }
         _ => {
             // Unknown attributes are allowed but logged
             // This provides extensibility while maintaining structure
@@ -705,18 +726,21 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
 /// Validates a complete userselected_dn string with custom format
 /// 
 /// # Format
-/// RFC 2253-style: `NNSWF=John,NSWF=Smith,email=john@example.com,...`
+/// RFC 2253-style: `NNSWF=John,NSWF=Smith,ContactURI=email:gmail.com:john,...`
 /// 
 /// # Supported Attributes
 /// - **NNSWF**: Name Not Shared With Family (given name), 1-50 UTF-8 chars
 /// - **NSWF**: Name Shared With Family (surname), 1-50 UTF-8 chars
-/// - **URI**: Generic identifier (scheme:authority:identifier)
+/// - **ContactURI**: Generic identifier (scheme:authority:identifier)
 ///   - Examples: `twitter:x.com:emusk`, `email:gmail.com:user`, `phone:ES:34683493049`
 /// - **taxRes**: Tax residence (ISO 3166-1 alpha-2)
 /// - **inceptDateTime**: Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
 /// - **inceptPlace**: Incept place (Plus Code)
 /// - **taxPayer**: Tax payer ID (country-specific, max 30 chars)
 /// - **address**: Contact address (Plus Code)
+/// - **Creature**: Descriptive label (max 50 printable characters)
+/// - **AvatarURL**: HTTPS URL for avatar media
+/// - **EmojiURL**: HTTPS URL for emoji asset
 /// 
 /// # Returns
 /// * `Ok(())` if DN is valid (or empty)
@@ -788,14 +812,14 @@ mod dn_tests {
     #[test]
     fn test_full_dn_format() {
         // Test with placeholder data matching schema structure
-        let dn = "NNSWF=TestGivenName,NSWF=TestSurname,URI=email:test.test:user,taxRes=XX,inceptDateTime=20000101120000Z,inceptPlace=8FVC9G8F+6X,taxPayer=000-00-0000,address=8FVC9G8F+6X";
+        let dn = "NNSWF=TestNameNotSharedWithFamily,NSWF=TestSurname,ContactURI=email:test.test:user,taxRes=XX,inceptDateTime=20000101120000Z,inceptPlace=8FVC9G8F+6X,taxPayer=000-00-0000,address=8FVC9G8F+6X,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg";
         assert!(validate_userselected_dn(dn).is_ok());
     }
 
     #[test]
     fn test_partial_dn_valid() {
-        assert!(validate_userselected_dn("NNSWF=GivenName,NSWF=Surname").is_ok());
-        assert!(validate_userselected_dn("NNSWF=Name,URI=twitter:x.com:testuser").is_ok());
+        assert!(validate_userselected_dn("NNSWF=NameNotSharedWithFamily,NSWF=Surname").is_ok());
+        assert!(validate_userselected_dn("NNSWF=Name,ContactURI=twitter:x.com:testuser").is_ok());
     }
 
     #[test]
@@ -871,18 +895,18 @@ mod dn_tests {
     #[test]
     fn test_valid_uri_formats() {
         // scheme:authority:identifier format
-        assert!(validate_dn_attribute("URI", "twitter:x.com:testuser").is_ok());
-        assert!(validate_dn_attribute("URI", "email:gmail.com:testuser").is_ok());
-        assert!(validate_dn_attribute("URI", "telegram:telegram.com:testuser").is_ok());
-        assert!(validate_dn_attribute("URI", "phone:ES:34000000000").is_ok());
-        assert!(validate_dn_attribute("URI", "").is_ok()); // Empty is valid (optional)
+        assert!(validate_dn_attribute("ContactURI", "twitter:x.com:testuser").is_ok());
+        assert!(validate_dn_attribute("ContactURI", "email:gmail.com:testuser").is_ok());
+        assert!(validate_dn_attribute("ContactURI", "telegram:telegram.com:testuser").is_ok());
+        assert!(validate_dn_attribute("ContactURI", "phone:ES:34000000000").is_ok());
+        assert!(validate_dn_attribute("ContactURI", "").is_ok()); // Empty is valid (optional)
     }
 
     #[test]
     fn test_invalid_uri_formats() {
         // Missing parts
-        assert!(validate_dn_attribute("URI", "twitter").is_err());
-        assert!(validate_dn_attribute("URI", "twitter:x.com").is_err()); // Missing identifier
-        assert!(validate_dn_attribute("URI", ":x.com:user").is_err()); // Missing scheme
+        assert!(validate_dn_attribute("ContactURI", "twitter").is_err());
+        assert!(validate_dn_attribute("ContactURI", "twitter:x.com").is_err()); // Missing identifier
+        assert!(validate_dn_attribute("ContactURI", ":x.com:user").is_err()); // Missing scheme
     }
 }

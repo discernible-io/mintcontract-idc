@@ -2,8 +2,8 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: identityclaw-com.near-20260404  
-**Example Account**: `identityclaw-com.near`  
+**Contract Version**: identyclaw-com.near-20260404  
+**Example Account**: `identyclaw-com.near`  
 **Controlling Domain**: `identityclaw.com`
 
 ---
@@ -262,11 +262,11 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near contract call-function as-read-only identityclaw-com.near get_fees \
+near contract call-function as-read-only identyclaw-com.near get_fees \
 network-config mainnet now
 
 # View complete configuration
-near contract call-function as-read-only identityclaw-com.near get_config \
+near contract call-function as-read-only identyclaw-com.near get_config \
   network-config mainnet-fastnear now
 ```
 ---
@@ -433,7 +433,7 @@ pub struct Contract {
 Defined in `src/lib.rs`:
 
 - `RODIT_METADATA_SPEC`: `"Discernible-near.org-20260404"` - Contract version
-- `CONTRACT_NAME`: `"identityclaw-com"` - Issuer identifier
+- `CONTRACT_NAME`: `"identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
@@ -599,7 +599,7 @@ pub struct TokenMetadata {
 ### Contract Constants
 
 - `RODIT_METADATA_SPEC = "Discernible-near.org-20260404"`
-- Issuer URL: `"identityclaw-com"`
+- Issuer URL: `"identyclaw-com"`
 
 ---
 
@@ -714,7 +714,7 @@ NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=identityclaw-com.near;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=identyclaw-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -753,7 +753,7 @@ NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=identityclaw-com.near;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=identyclaw-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -774,7 +774,7 @@ NNSWF=John,NSWF=Smith,URI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=identityclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -1183,17 +1183,17 @@ All events use this envelope:
 
 2. **Deploy code to testnet**:
    ```bash
-   near deploy --accountId identityclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
+   near deploy --accountId identyclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
    ```
 
 3. **Initialize the contract**:
    ```bash
-   near call identityclaw-com.near init '{"owner_id":"identityclaw-com.near","metadata":null}' --accountId identityclaw-com.near
+   near call identyclaw-com.near init '{"owner_id":"identyclaw-com.near","metadata":null}' --accountId identyclaw-com.near
    ```
 
 ### Notes
 
-When CONTRACT_NAME=identityclaw-com.near
+When CONTRACT_NAME=identyclaw-com.near
 Then replacing - with . we get 
 pub const CONTRACT_NAME: &str = "identityclaw.com";
 Where identityclaw.com is the controlling domain for the contract.

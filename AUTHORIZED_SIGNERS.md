@@ -1,6 +1,6 @@
 # Authorized Signers for RODiT Contract
 
-**Contract**: `identityclaw-com.near`  
+**Contract**: `identyclaw-com.near`  
 **Network**: NEAR Mainnet  
 **Last Updated**: November 5, 2026
 
@@ -24,7 +24,7 @@ The following Ed25519 public keys are authorized to sign fee data for minting op
 
 ## Contract Configuration
 
-- **Owner**: `identityclaw-com.near`
+- **Owner**: `identyclaw-com.near`
 - **Status**: Active
 - **Version**: Discernible-near.org-20260404
 - **Total Authorized Signers**: 2
@@ -59,7 +59,7 @@ The following Ed25519 public keys are authorized to sign fee data for minting op
 ### View Current Signers
 
 ```bash
-near view identityclaw-com.near view_authorized_signers --network-id mainnet
+near view identyclaw-com.near view_authorized_signers --network-id mainnet
 ```
 
 Or use the provided script:
@@ -70,9 +70,9 @@ Or use the provided script:
 ### Add a New Signer
 
 ```bash
-near call identityclaw-com.near add_authorized_signer \
+near call identyclaw-com.near add_authorized_signer \
   '{"public_key_hex": "YOUR_64_CHAR_HEX_PUBLIC_KEY"}' \
-  --accountId identityclaw-com.near \
+  --accountId identyclaw-com.near \
   --depositYocto 1 \
   --gas 300000000000000 \
   --network-id mainnet
@@ -86,9 +86,9 @@ near call identityclaw-com.near add_authorized_signer \
 ### Remove a Signer
 
 ```bash
-near call identityclaw-com.near remove_authorized_signer \
+near call identyclaw-com.near remove_authorized_signer \
   '{"public_key_hex": "YOUR_64_CHAR_HEX_PUBLIC_KEY"}' \
-  --accountId identityclaw-com.near \
+  --accountId identyclaw-com.near \
   --depositYocto 1 \
   --gas 300000000000000 \
   --network-id mainnet
@@ -119,13 +119,13 @@ near call identityclaw-com.near remove_authorized_signer \
 ### Contract Configuration
 ```bash
 # View complete contract configuration
-near view identityclaw-com.near get_config --network-id mainnet
+near view identyclaw-com.near get_config --network-id mainnet
 
 # View contract status
-near view identityclaw-com.near get_contract_status --network-id mainnet
+near view identyclaw-com.near get_contract_status --network-id mainnet
 
 # View fee configuration
-near view identityclaw-com.near get_fees --network-id mainnet
+near view identyclaw-com.near get_fees --network-id mainnet
 ```
 
 ---

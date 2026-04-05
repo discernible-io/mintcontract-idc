@@ -98,7 +98,7 @@ COMMANDS:
                - Can be called at any time after deployment.
 
 ARGUMENTS:
-  account_id   NEAR account ID that owns the contract (e.g., identityclaw-com.near)
+  account_id   NEAR account ID that owns the contract (e.g., identyclaw-com.near)
   network      Optional network connection name (default: testnet)
   rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
   signerN      Authorized signer public keys to add (64 lowercase hex characters)
@@ -112,21 +112,21 @@ NOTES:
 
 EXAMPLES:
   1. Initial deployment to testnet (no custom RPC):
-       ./deploy.sh deploy identityclaw-com.near
+       ./deploy.sh deploy identyclaw-com.near
 
   2. Upgrade existing contract on mainnet:
-       ./deploy.sh deploy identityclaw-com.near mainnet
+       ./deploy.sh deploy identyclaw-com.near mainnet
 
   3. Deploy using a custom RPC endpoint:
-       ./deploy.sh deploy identityclaw-com.near mainnet-custom https://rpc.mainnet.near.org
+       ./deploy.sh deploy identyclaw-com.near mainnet-custom https://rpc.mainnet.near.org
 
   4. Add authorized signers on testnet (no custom RPC):
-       ./deploy.sh add-signers identityclaw-com.near testnet "" \
+       ./deploy.sh add-signers identyclaw-com.near testnet "" \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
          43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac
 
   5. Add signers using default network (testnet) — network argument omitted:
-       ./deploy.sh add-signers identityclaw-com.near \
+       ./deploy.sh add-signers identyclaw-com.near \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
 
 EOF

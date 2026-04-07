@@ -9,30 +9,32 @@ use serde_json;
 
 // Regular expressions for validation
 lazy_static! {
-    /// Validates date format: YYYY-MM-DD
-    static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+    /// Validates date format: YYYY-MM-DD (present but not exclusively)
+    static ref DATE_REGEX: Regex = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     
-    /// Validates HTTPS URLs with basic structure checking
-    static ref URL_REGEX: Regex = Regex::new(r"^https://[^\s/$.?#].[^\s]*$").unwrap();
+    /// Validates HTTPS URLs with basic structure checking (present but not exclusively)
+    static ref URL_REGEX: Regex = Regex::new(r"https://[^\s/$.?#].[^\s]*").unwrap();
     
-    /// Validates CIDR notation (e.g., 192.168.1.0/24)
-    static ref CIDR_REGEX: Regex = Regex::new(r"^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])$").unwrap();
+    /// Validates CIDR notation (e.g., 192.168.1.0/24) (present but not exclusively)
+    static ref CIDR_REGEX: Regex = Regex::new(r"([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[1-2][0-9]|3[0-2])").unwrap();
     
-    /// Validates domain names
-    static ref DOMAIN_REGEX: Regex = Regex::new(r"^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$").unwrap();
+    /// Validates domain names (present but not exclusively)
+    static ref DOMAIN_REGEX: Regex = Regex::new(r"([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}").unwrap();
 }
 
 /// Validates a date string format (YYYY-MM-DD)
+/// Checks for presence of valid date but not exclusively
 /// 
 /// # Arguments
 /// * `date_str` - The date string to validate
 /// 
 /// # Returns
-/// * `bool` - true if the date is in valid YYYY-MM-DD format
+/// * `bool` - true if a valid YYYY-MM-DD date is present in the string
 /// 
 /// # Examples
 /// ```
 /// assert!(validate_date_format("2026-12-31"));
+/// assert!(validate_date_format("Date: 2026-12-31 is valid"));
 /// assert!(!validate_date_format("2026/12/31"));
 /// ```
 pub fn validate_date_format(date_str: &str) -> bool {
@@ -40,35 +42,37 @@ pub fn validate_date_format(date_str: &str) -> bool {
         return false;
     }
     
-    if !DATE_REGEX.is_match(date_str) {
-        return false;
+    // Find if a date pattern exists in the string
+    if let Some(date_match) = DATE_REGEX.find(date_str) {
+        let matched_date = date_match.as_str();
+        
+        // Additional validation: check if date components are in valid ranges
+        let parts: Vec<&str> = matched_date.split('-').collect();
+        if parts.len() != 3 {
+            return false;
+        }
+        
+        if let (Ok(year), Ok(month), Ok(day)) = (
+            parts[0].parse::<u32>(),
+            parts[1].parse::<u32>(),
+            parts[2].parse::<u32>()
+        ) {
+            // Basic range validation
+            return year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+        }
     }
     
-    // Additional validation: check if date components are in valid ranges
-    let parts: Vec<&str> = date_str.split('-').collect();
-    if parts.len() != 3 {
-        return false;
-    }
-    
-    if let (Ok(year), Ok(month), Ok(day)) = (
-        parts[0].parse::<u32>(),
-        parts[1].parse::<u32>(),
-        parts[2].parse::<u32>()
-    ) {
-        // Basic range validation
-        year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31
-    } else {
-        false
-    }
+    false
 }
 
 /// Validates a URL format
+/// Checks for presence of valid HTTPS URL but not exclusively
 /// 
 /// # Arguments
 /// * `url` - The URL string to validate
 /// 
 /// # Returns
-/// * `bool` - true if the URL is valid HTTPS format or empty
+/// * `bool` - true if a valid HTTPS URL is present in the string or empty
 /// 
 /// # Security Notes
 /// - Only HTTPS URLs are allowed for security
@@ -84,24 +88,19 @@ pub fn validate_url(url: &str) -> bool {
         return false;
     }
     
-    // Must be HTTPS
-    if !url.starts_with("https://") {
-        return false;
-    }
-    
-    // Basic URL validation using regex
-    if !URL_REGEX.is_match(url) {
-        return false;
-    }
-    
-    // Extract and validate domain
-    if let Some(domain_start) = url.find("://") {
-        let after_protocol = &url[domain_start + 3..];
-        if let Some(domain_end) = after_protocol.find('/').or_else(|| Some(after_protocol.len())) {
-            let domain = &after_protocol[..domain_end];
-            // Remove port if present
-            let domain_without_port = domain.split(':').next().unwrap_or(domain);
-            return DOMAIN_REGEX.is_match(domain_without_port) || domain_without_port == "localhost";
+    // Find if a valid HTTPS URL is present in the string
+    if let Some(url_match) = URL_REGEX.find(url) {
+        let matched_url = url_match.as_str();
+        
+        // Extract and validate domain
+        if let Some(domain_start) = matched_url.find("://") {
+            let after_protocol = &matched_url[domain_start + 3..];
+            if let Some(domain_end) = after_protocol.find('/').or_else(|| Some(after_protocol.len())) {
+                let domain = &after_protocol[..domain_end];
+                // Remove port if present
+                let domain_without_port = domain.split(':').next().unwrap_or(domain);
+                return DOMAIN_REGEX.is_match(domain_without_port) || domain_without_port == "localhost";
+            }
         }
     }
     
@@ -109,17 +108,18 @@ pub fn validate_url(url: &str) -> bool {
 }
 
 /// Validates a CIDR notation string
+/// Checks for presence of valid CIDR notation but not exclusively
 /// 
 /// # Arguments
 /// * `cidr` - The CIDR notation string to validate (e.g., "192.168.1.0/24")
 /// 
 /// # Returns
-/// * `bool` - true if the CIDR notation is valid or empty
+/// * `bool` - true if a valid CIDR notation is present in the string or empty
 /// 
 /// # Examples
 /// ```
 /// assert!(validate_cidr("192.168.1.0/24"));
-/// assert!(validate_cidr("10.0.0.0/8"));
+/// assert!(validate_cidr("Network: 10.0.0.0/8"));
 /// assert!(!validate_cidr("256.1.1.1/24"));
 /// ```
 pub fn validate_cidr(cidr: &str) -> bool {
@@ -127,32 +127,35 @@ pub fn validate_cidr(cidr: &str) -> bool {
         return true; // Empty CIDR is considered valid (optional field)
     }
     
-    if !CIDR_REGEX.is_match(cidr) {
-        return false;
-    }
-    
-    // Additional validation: check if IP octets are in valid range (0-255)
-    let parts: Vec<&str> = cidr.split('/').collect();
-    if parts.len() != 2 {
-        return false;
-    }
-    
-    let ip_parts: Vec<&str> = parts[0].split('.').collect();
-    if ip_parts.len() != 4 {
-        return false;
-    }
-    
-    for octet in ip_parts {
-        if let Ok(num) = octet.parse::<u32>() {
-            if num > 255 {
-                return false;
-            }
-        } else {
+    // Find if a valid CIDR pattern exists in the string
+    if let Some(cidr_match) = CIDR_REGEX.find(cidr) {
+        let matched_cidr = cidr_match.as_str();
+        
+        // Additional validation: check if IP octets are in valid range (0-255)
+        let parts: Vec<&str> = matched_cidr.split('/').collect();
+        if parts.len() != 2 {
             return false;
         }
+        
+        let ip_parts: Vec<&str> = parts[0].split('.').collect();
+        if ip_parts.len() != 4 {
+            return false;
+        }
+        
+        for octet in ip_parts {
+            if let Ok(num) = octet.parse::<u32>() {
+                if num > 255 {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        
+        return true;
     }
     
-    true
+    false
 }
 
 /// Helper function to validate escaped JSON strings
@@ -173,6 +176,7 @@ pub fn validate_escaped_json(json_str: &str) -> bool {
 
 /// Validates ISO 3166 country codes in JSON format
 /// Handles both simple comma-separated lists and JSON structures with allow/deny fields
+/// Checks for presence of valid codes but not exclusively
 pub fn validate_iso3166(country_list_json: &str) -> bool {
     // Empty input is not valid
     if country_list_json.is_empty() {
@@ -180,18 +184,18 @@ pub fn validate_iso3166(country_list_json: &str) -> bool {
     }
     
     // Try to parse as JSON first
-    if country_list_json.starts_with('{') {
+    if country_list_json.contains('{') {
         return validate_escaped_json(country_list_json);
     }
     
     // If not JSON, validate as a simple comma-separated list of country codes
-    // ISO 3166 country code list validation (comma-separated)
+    // ISO 3166 country code list validation (comma-separated, present but not exclusively)
     lazy_static! {
-        static ref COUNTRY_CODE_REGEX: Regex = Regex::new(r"^([A-Z]{2})(,[A-Z]{2})*$").unwrap();
+        static ref COUNTRY_CODE_REGEX: Regex = Regex::new(r"([A-Z]{2})(,[A-Z]{2})*").unwrap();
     }
     
     // Special case: "WLD" is a valid value representing "worldwide" (no restrictions)
-    if country_list_json == "WLD" {
+    if country_list_json.contains("WLD") {
         return true;
     }
     

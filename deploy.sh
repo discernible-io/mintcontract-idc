@@ -35,16 +35,27 @@ add_custom_network_connection() {
     base_network="$connection_name"
   fi
 
-  echo "Adding custom network connection: $connection_name"
+  echo "Checking network connection: $connection_name"
   echo "RPC URL: $rpc_url"
   echo "Base network: $base_network"
 
-  $NEAR_CLI config add-connection \
+  # Check if connection already exists in the config file
+  local config_file="$HOME/.config/near-cli/config.toml"
+  if [ -f "$config_file" ] && grep -q "\[network_connection\.$connection_name\]" "$config_file"; then
+    echo "Network connection '$connection_name' already exists. Skipping configuration."
+    echo ""
+    return
+  fi
+
+  echo "Adding custom network connection: $connection_name"
+
+  # Use printf with down arrow and enter to select "No" (second option)
+  printf "\033[B\n" | $NEAR_CLI config add-connection \
     --network-name "$base_network" \
     --connection-name "$connection_name" \
     --rpc-url "$rpc_url" \
     --wallet-url "https://app.mynearwallet.com/" \
-    --explorer-transaction-url "https://explorer.near.org/transactions/"
+    --explorer-transaction-url "https://explorer.near.org/transactions/" 2>/dev/null
 
   if [ $? -ne 0 ]; then
     echo "Warning: Failed to add custom network connection. Proceeding with existing configuration."
@@ -148,6 +159,9 @@ POLLING_INTERVAL=10  # Check status every 10 seconds
 BUFFER_SECONDS=10  # Add a small buffer to the delay time
 # Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
 INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
+# FastNEAR RPC endpoints (recommended)
+FASTNEAR_MAINNET_RPC="https://free.rpc.fastnear.com/"
+FASTNEAR_TESTNET_RPC="https://free.rpc.fastnear.com/"
 
 AUTHORIZED_SIGNERS=()
 
@@ -214,7 +228,18 @@ case "$COMMAND" in
     ;;
 esac
 
-# Configure custom RPC connection if provided
+# Configure custom RPC connection if provided, otherwise use FastNEAR by default
+if [ -z "$CUSTOM_RPC_URL" ]; then
+  # Use FastNEAR RPC by default
+  if [[ "$NETWORK" == "mainnet"* ]]; then
+    CUSTOM_RPC_URL="$FASTNEAR_MAINNET_RPC"
+    NETWORK="mainnet-fastnear"
+  elif [[ "$NETWORK" == "testnet"* ]]; then
+    CUSTOM_RPC_URL="$FASTNEAR_TESTNET_RPC"
+    NETWORK="testnet-fastnear"
+  fi
+fi
+
 if [ -n "$CUSTOM_RPC_URL" ]; then
   add_custom_network_connection
 fi
@@ -269,7 +294,7 @@ echo
 
 # Initial deployment detection and flow
 echo "Checking if contract is already initialized on $ACCOUNT_ID ..."
-if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" now >/dev/null 2>&1; then
+if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
   echo "No initialized contract detected. Performing initial deploy + init."
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
@@ -319,7 +344,7 @@ TOTAL_WAIT_TIME=$((UPGRADE_DELAY_SECONDS + BUFFER_SECONDS))
 ELAPSED_TIME=0
 
 while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
-  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
+  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK 2>/dev/null | tail -n 1 | tr -d ' ')
   
   # Check if the result is a number
   if [[ $REMAINING =~ ^[0-9]+$ ]]; then
@@ -340,7 +365,7 @@ while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
   
   # If we've waited longer than expected, check if we can proceed anyway
   if [ $ELAPSED_TIME -ge $TOTAL_WAIT_TIME ]; then
-    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
+    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK 2>/dev/null | tail -n 1 | tr -d ' ')
     if [ "$FINAL_CHECK" -eq "0" ]; then
       echo "Upgrade delay period has completed!"
       break
@@ -385,7 +410,7 @@ echo
 
 # Step 6: Resume the contract
 echo "Step 6: Resuming contract..."
-$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --deposit 0
+$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --depositYocto 1
 if [ $? -ne 0 ]; then
   echo "Error: Failed to resume contract"
   exit 1

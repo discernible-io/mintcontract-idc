@@ -1,15 +1,15 @@
 [package]
-name = "2026v1-identyclaw-com-near"
+name = "contract-2026v1-identyclaw-com-near"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <org@identityclaw.com>"]
+authors = ["Your Name <org@rodit.org>"]
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-near-sdk = { version = "5.14.0", default-features = false, features = ["legacy", "__macro-docs"] }
-borsh = "0.9"
+near-sdk = { version = "=5.14.0", default-features = false, features = ["legacy", "__macro-docs"] }
+borsh = { version = "1.0", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 miniserde = "0.1"
@@ -20,7 +20,7 @@ lazy_static = "1.4.0"
 sha2 = "0.10.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-near-sdk = { version = "5.14.0", default-features = false, features = ["abi", "unstable", "schemars"] }
+near-sdk = { version = "=5.14.0", default-features = false, features = ["abi", "unstable", "schemars"] }
 schemars = "0.8.15"
 near-abi = "0.4.3"
 

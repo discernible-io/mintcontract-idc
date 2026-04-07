@@ -244,6 +244,19 @@ else
 fi
 echo
 
+# Step 0.5: Pin dependencies to versions compatible with Rust 1.86.0
+# This is needed because newer versions of darling (0.23+) and serde_with (3.18+)
+# require Rust 1.88.0, but near-sdk uses loose version constraints (e.g., "3" for serde_with)
+# which causes Cargo to resolve to the latest incompatible versions.
+echo "Step 0.5: Pinning dependencies to Rust 1.86.0-compatible versions..."
+cargo update --package serde_with --precise 3.17.0 2>/dev/null || true
+cargo update --package serde_with_macros --precise 3.17.0 2>/dev/null || true
+cargo update --package darling --precise 0.20.10 2>/dev/null || true
+cargo update --package darling_core --precise 0.20.10 2>/dev/null || true
+cargo update --package darling_macro --precise 0.20.10 2>/dev/null || true
+echo "Dependencies pinned successfully."
+echo
+
 # Step 1: Build the contract
 echo "Step 1: Building contract..."
 cargo near build non-reproducible-wasm --no-abi
@@ -261,7 +274,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" 
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -362,7 +375,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1

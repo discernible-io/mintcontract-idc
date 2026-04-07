@@ -59,7 +59,7 @@ The following Ed25519 public keys are authorized to sign fee data for minting op
 ### View Current Signers
 
 ```bash
-near view 2026v1-identyclaw-com.near view_authorized_signers --network-id mainnet
+near view contract-2026v1-identyclaw-com.near view_authorized_signers --network-id mainnet
 ```
 
 Or use the provided script:

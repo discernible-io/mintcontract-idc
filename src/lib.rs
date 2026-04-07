@@ -293,7 +293,7 @@ impl Contract {
             
             // Update upgrade config with new delay
             upgrade_config: upgrade::ContractUpgrade {
-                upgrade_delay: 86400, // Use the new 24-hour delay for production safety
+                upgrade_delay: upgrade::DEFAULT_UPGRADE_DELAY_SECONDS,
                 upgrade_proposed_at: old_contract.upgrade_config.upgrade_proposed_at,
                 upgrade_proposed_by: old_contract.upgrade_config.upgrade_proposed_by,
             },

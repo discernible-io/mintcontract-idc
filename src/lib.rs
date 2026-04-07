@@ -318,8 +318,9 @@ impl Contract {
             env::panic_str(&error_msg);
         }
         
-        if new_contract.upgrade_config.upgrade_delay != 86400 {
-            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected 86400, got {}", 
+        if new_contract.upgrade_config.upgrade_delay != upgrade::DEFAULT_UPGRADE_DELAY_SECONDS {
+            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected {}, got {}", 
+                upgrade::DEFAULT_UPGRADE_DELAY_SECONDS,
                 new_contract.upgrade_config.upgrade_delay);
             env::log_str(&error_msg);
             env::panic_str(&error_msg);

@@ -67,7 +67,7 @@ pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.00
 
 // Rate limiting constants
 pub const RATE_LIMIT_WINDOW: u64 = 3600; // 1 hour in seconds
-pub const MAX_MINTS_PER_WINDOW: u64 = 10; // Maximum 10 mints per hour per account
+pub const MAX_MINTS_PER_WINDOW: u64 = 100; // Maximum 100 mints per hour per account
 
 /// DID:wba JSON-LD context describing the RODiT token vocabulary.
 /// This is provided as a constant string so it can be returned via a view

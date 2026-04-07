@@ -39,7 +39,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - **Token Transfer**: Transfer tokens between NEAR accounts with event logging
 - **Token Burning**: Destroy tokens with automatic storage refunds
 - **Fee Management**: Configurable initialization fees, contract fee percentages, and storage costs
-- **Rate Limiting**: Prevent spam with 10 mints per hour per account
+- **Rate Limiting**: Prevent spam with 100 mints per hour per account
 - **Signature Verification**: Ed25519 signature verification for fee authorization
 - **Time-Locked Upgrades**: 24-hour delay mechanism for secure contract upgrades
 - **Storage Management**: Automatic tracking and refunding of storage costs
@@ -1459,6 +1459,63 @@ This contract uses a compact facial `token_id` encoding for each minted token. T
 | 8     | i      | gray-hair             |
 | 9     | j      | white-hair            |
 | 10    | k      | silver-hair           |
+
+---
+
+## Security Best Practices
+
+### For Contract Operators
+
+#### 1. **Credential Security**
+- **Never commit private keys** to version control
+- Store credentials in `~/.near-credentials/` with 600 permissions
+- Run `./secure_credentials.sh` after creating/updating credentials
+- Ensure `account.env` is in `.gitignore`
+
+#### 2. **Deployment Security**
+- Review `DEPLOYMENT_CHECKLIST.md` before each deployment
+- Test all changes on testnet first
+- Use `./monitor_contract.sh` to verify deployment
+- Document all configuration changes
+
+#### 3. **Operational Security**
+- Monitor contract status regularly: `./monitor_contract.sh`
+- Review authorized signers periodically
+- Keep deployment scripts updated
+- Have emergency response plan ready
+
+#### 4. **Emergency Procedures**
+- Pause contract if issues detected: `./emergency_pause.sh [account] [network] pause`
+- Remove compromised signers immediately
+- Document all security incidents
+- Notify users of security-related changes
+
+### Security Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `secure_credentials.sh` | Set proper permissions on credential files | `./secure_credentials.sh` |
+| `monitor_contract.sh` | Check contract status and configuration | `./monitor_contract.sh [account] [network]` |
+| `emergency_pause.sh` | Emergency pause/resume contract | `./emergency_pause.sh [account] [network] [action]` |
+
+### Security Documentation
+
+- **`SECURITY.md`**: Complete security policy and vulnerability reporting
+- **`DEPLOYMENT_CHECKLIST.md`**: Pre-deployment security checklist
+- **`AUTHORIZED_SIGNERS.md`**: Current authorized signers and management
+
+### Key Security Features
+
+1. **Access Control**: Owner-only admin functions with 1 yoctoNEAR protection
+2. **Rate Limiting**: 100 mints per hour per account
+3. **Signature Verification**: Ed25519 signatures bound to parameters
+4. **Time-Locked Upgrades**: 24-hour delay for mainnet upgrades
+5. **Arithmetic Safety**: All operations use checked math
+6. **Reentrancy Protection**: Checks-effects-interactions pattern
+
+### Reporting Security Issues
+
+**DO NOT** open public issues for security vulnerabilities. See `SECURITY.md` for responsible disclosure process.
 
 ---
 

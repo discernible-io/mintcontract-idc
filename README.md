@@ -1281,18 +1281,16 @@ This contract uses a compact facial `token_id` encoding for each minted token. T
 
 - 12 lowercase ASCII letters (`a`–`z`)
 - Positions **0–10**: indices for 11 facial categories (in fixed order)
-- Position **11**: checksum letter
+- Position **11**: reserved for future use
 
 ### Encoding rules
 
 - For each category position `i` in `0..=10`:
   - Letter `'a'` encodes index `0`, `'b'` encodes `1`, …, `'z'` encodes `25`.
   - Index must be `<` the number of values in that category (see tables below).
-- Checksum letter at position `11`:
-  - Compute each index `idx_i = token_id[i] - 'a'` for `i = 0..10`.
-  - Compute `sum_indices = Σ idx_i`.
-  - `checksum_index = sum_indices % 26`.
-  - Expected checksum letter is `'a' + checksum_index`.
+- Position **11** (reserved):
+  - Currently accepts any lowercase letter `'a'`–`'z'`.
+  - Reserved for future use (e.g., checksum validation or additional metadata).
 
 ### Category order (positions 0–10)
 

@@ -134,7 +134,8 @@ EXAMPLES:
   4. Add authorized signers on testnet (no custom RPC):
        ./deploy.sh add-signers 2026v1-identyclaw-com.near testnet "" \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
-         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac
+         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \
+         3467c4e8f5b0445d474742f976d24ca1991d843f58d8b9aaf45e6b6b8ff6603a
 
   5. Add signers using default network (testnet) — network argument omitted:
        ./deploy.sh add-signers 2026v1-identyclaw-com.near \

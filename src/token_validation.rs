@@ -775,13 +775,13 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
 /// Validates a complete userselected_dn string with custom format
 /// 
 /// # Format
-/// RFC 2253-style: `NNSWF=John,NSWF=Smith,ContactURI=email:gmail.com:john,...`
+/// RFC 2253-style: `NNSWF=Claudio,NSWF=Perez,ContactURI=email:example.com:identyclaw@example.com,...`
 /// 
 /// # Supported Attributes
 /// - **NNSWF**: Name Not Shared With Family (given name), 1-50 UTF-8 chars
 /// - **NSWF**: Name Shared With Family (surname), 1-50 UTF-8 chars
 /// - **ContactURI**: Generic identifier (scheme:authority:identifier)
-///   - Examples: `twitter:x.com:emusk`, `email:gmail.com:user`, `phone:ES:34683493049`
+///   - Examples: `twitter:x.com:emusk`, `email:example.com:identyclaw@example.com`, `phone:ES:34683493049`
 /// - **taxRes**: Tax residence (ISO 3166-1 alpha-2)
 /// - **inceptDateTime**: Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
 /// - **inceptPlace**: Incept place (Plus Code)
@@ -862,6 +862,13 @@ mod dn_tests {
     fn test_full_dn_format() {
         // Test with placeholder data matching schema structure
         let dn = "NNSWF=TestNameNotSharedWithFamily,NSWF=TestSurname,ContactURI=email:test.test:user,taxRes=XX,inceptDateTime=20000101120000Z,inceptPlace=8FVC9G8F+6X,taxPayer=000-00-0000,address=8FVC9G8F+6X,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg";
+        assert!(validate_userselected_dn(dn).is_ok());
+    }
+
+    #[test]
+    fn test_dn_with_email_identifier() {
+        // Test with email identifier containing @ symbol (new format)
+        let dn = "NNSWF=Claudio,NSWF=Perez,ContactURI=email:example.com:identyclaw@example.com,taxRes=ES,inceptDateTime=20260101120000Z,inceptPlace=443R4JF4+8M,address=443R4JF4+8M,Creature=Majordomo,AvatarURL=https://identyclaw.com/avatar.png";
         assert!(validate_userselected_dn(dn).is_ok());
     }
 

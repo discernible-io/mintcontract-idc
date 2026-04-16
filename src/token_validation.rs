@@ -325,59 +325,77 @@ pub fn validate_token_metadata(
 // FACIAL TOKEN ID ENCODING SPECIFICATION
 // =============================================================================
 // 
-// A facial token_id is a 12-character lowercase ASCII string that encodes
-// biometric facial features in a compact format.
+// A facial token_id is a 12-character string that encodes biometric facial
+// features using alternating position-specific character sets.
 //
 // STRUCTURE:
-// - All 12 positions: Facial feature category codes (letters 'a'-'z')
+// - Positions 0-10: Facial feature category indices
+// - Position 11: Checksum letter
 // - Total length: 12 characters
 //
-// ENCODING:
-// Each position encodes a specific facial feature category using a single
-// lowercase letter ('a'-'z'), where each letter maps to an index (0-25).
-// Not all indices are valid for each category - see VALUE_COUNT constants.
+// CHARACTER SETS (no vowels or ambiguous letters):
+// - CHARSET_EVEN: [b, c, a, e, u, g]  (6 chars) - positions 0,2,4,6,8,10
+// - CHARSET_ODD:  [d, f, h, j, k, m, n, p, q, r, t, v, w, x, y] (15 chars) - positions 1,3,5,7,9,11(checksum)
 //
-// POSITION MAP:
-//   [0] = Skin Tones           (19 possible values: 'a'-'s')
-//   [1] = Regional Bone Struct (12 possible values: 'a'-'l')
-//   [2] = Face Shape           (15 possible values: 'a'-'o')
-//   [3] = Age Related          (5 possible values:  'a'-'e')
-//   [4] = Eyes                 (10 possible values: 'a'-'j')
-//   [5] = Eyebrow Style        (6 possible values:  'a'-'f')
-//   [6] = Overall Structure    (2 possible values:  'a'-'b')
-//   [7] = Nose                 (6 possible values:  'a'-'f')
-//   [8] = Lips                 (5 possible values:  'a'-'e')
-//   [9] = Skin Conditions      (6 possible values:  'a'-'f')
-//  [10] = Hair Color           (11 possible values: 'a'-'k')
-//  [11] = (Reserved/Future)    (26 possible values: 'a'-'z')
+// POSITION MAP (categories ordered by value count to optimize charset usage):
+//   [0] = Overall Structure    (2 values,  uses CHARSET_EVEN)
+//   [1] = Face Shape           (15 values, uses CHARSET_ODD)
+//   [2] = Age Related          (5 values,  uses CHARSET_EVEN)
+//   [3] = Regional Bone Struct (12 values, uses CHARSET_ODD)
+//   [4] = Lips                 (5 values,  uses CHARSET_EVEN)
+//   [5] = Hair Color           (11 values, uses CHARSET_ODD)
+//   [6] = Eyebrow Style        (6 values,  uses CHARSET_EVEN)
+//   [7] = Eyes                 (10 values, uses CHARSET_ODD)
+//   [8] = Skin Conditions      (6 values,  uses CHARSET_EVEN)
+//   [9] = Skin Tones           (11 values, uses CHARSET_ODD)
+//  [10] = Nose                 (6 values,  uses CHARSET_EVEN)
+//  [11] = Checksum             (mod 15 of sum, uses CHARSET_ODD)
 //
-// EXAMPLE:
-//   Token: "aaaaaaaaaaaaa"
-//   - All features at index 0 ('a')
+// CHECKSUM CALCULATION:
+// - Sum all indices from positions 0-10
+// - checksum_index = sum % 15 (CHARSET_ODD length)
+// - checksum_letter = CHARSET_ODD[checksum_index]
 //
 // =============================================================================
 
 const FACE_TOKEN_ID_LENGTH: usize = 12;
 
-// Maximum valid index for each facial feature category
-// (index = letter - 'a', so 'a'=0, 'b'=1, ..., 'z'=25)
-const SKIN_TONES_VALUE_COUNT: usize = 19;              // 'a' through 's'
-const REGIONAL_BONE_STRUCTURE_VALUE_COUNT: usize = 12; // 'a' through 'l'
-const FACE_SHAPE_VALUE_COUNT: usize = 15;              // 'a' through 'o'
-const AGE_RELATED_VALUE_COUNT: usize = 5;              // 'a' through 'e'
-const EYES_VALUE_COUNT: usize = 10;                    // 'a' through 'j'
-const EYEBROW_STYLE_VALUE_COUNT: usize = 6;            // 'a' through 'f'
-const OVERALL_STRUCTURE_VALUE_COUNT: usize = 2;        // 'a' through 'b'
-const NOSE_VALUE_COUNT: usize = 6;                     // 'a' through 'f'
-const LIPS_VALUE_COUNT: usize = 5;                     // 'a' through 'e'
-const SKIN_CONDITIONS_VALUE_COUNT: usize = 6;          // 'a' through 'f'
-const HAIR_COLOR_VALUE_COUNT: usize = 11;              // 'a' through 'k'
+// Position-specific character sets (no vowels, no ambiguous letters)
+const CHARSET_EVEN: &[u8] = b"bcaeug";    // 6 chars - for positions 0,2,4,6,8,10
+const CHARSET_ODD: &[u8] = b"dfhjkmnpqrtvwxy"; // 15 chars - for positions 1,3,5,7,9,11(checksum)
 
-fn face_value_char_to_index(c: char) -> Option<usize> {
-    match c {
-        'a'..='z' => Some((c as u8 - b'a') as usize),
-        _ => None,
+// Facial category value counts
+const SKIN_TONES_VALUE_COUNT: usize = 11;              // 11 values
+const REGIONAL_BONE_STRUCTURE_VALUE_COUNT: usize = 12; // 12 values
+const FACE_SHAPE_VALUE_COUNT: usize = 15;              // 15 values
+const AGE_RELATED_VALUE_COUNT: usize = 5;              // 5 values
+const EYES_VALUE_COUNT: usize = 10;                    // 10 values
+const EYEBROW_STYLE_VALUE_COUNT: usize = 6;            // 6 values
+const OVERALL_STRUCTURE_VALUE_COUNT: usize = 2;        // 2 values
+const NOSE_VALUE_COUNT: usize = 6;                     // 6 values
+const LIPS_VALUE_COUNT: usize = 5;                     // 5 values
+const SKIN_CONDITIONS_VALUE_COUNT: usize = 6;          // 6 values
+const HAIR_COLOR_VALUE_COUNT: usize = 11;              // 11 values
+
+/// Get the character set for a specific position
+fn get_charset_for_position(pos: usize) -> &'static [u8] {
+    match pos {
+        0 | 2 | 4 | 6 | 8 | 10 => CHARSET_EVEN,
+        1 | 3 | 5 | 7 | 9 | 11 => CHARSET_ODD,
+        _ => panic!("Invalid position {} for facial token charset", pos),
     }
+}
+
+/// Convert a character to its index within the position-specific charset
+fn char_to_index(c: char, pos: usize) -> Option<usize> {
+    let charset = get_charset_for_position(pos);
+    charset.iter().position(|&byte| byte as char == c)
+}
+
+/// Convert an index to its character within the position-specific charset
+fn index_to_char(index: usize, pos: usize) -> Option<char> {
+    let charset = get_charset_for_position(pos);
+    charset.get(index).map(|&byte| byte as char)
 }
 
 fn validate_face_position(
@@ -387,24 +405,24 @@ fn validate_face_position(
     category_name: &str,
 ) -> Result<usize, String> {
     let bytes = token_id.as_bytes();
+    if pos >= bytes.len() {
+        return Err(format!("Position {} out of bounds", pos));
+    }
     let value_char = bytes[pos] as char;
 
-    let index = face_value_char_to_index(value_char).ok_or_else(|| {
+    let index = char_to_index(value_char, pos).ok_or_else(|| {
+        let charset = get_charset_for_position(pos);
+        let charset_str = std::str::from_utf8(charset).unwrap_or("unknown");
         format!(
-            "Invalid value code '{}' at position {} for {} (expected 'a'-'z')",
-            value_char,
-            pos,
-            category_name
+            "Invalid character '{}' at position {} for {} (expected one of: {})",
+            value_char, pos, category_name, charset_str
         )
     })?;
 
     if index >= max_values {
         return Err(format!(
-            "Value code '{}' at position {} for {} is out of range (max index {})",
-            value_char,
-            pos,
-            category_name,
-            max_values - 1
+            "Index {} at position {} for {} is out of range (max index {})",
+            index, pos, category_name, max_values - 1
         ));
     }
 
@@ -453,83 +471,90 @@ fn validate_face_token_substring(token_id: &str) -> Result<(), String> {
     // This function assumes token_id is exactly 12 characters
     debug_assert_eq!(token_id.len(), FACE_TOKEN_ID_LENGTH);
 
-    // Validate each of the 11 positional category indices (letters a-z)
-    // Position 11 is reserved/unused and not validated
-    validate_face_position(
+    // Validate each of the 11 positional category indices (new order)
+    let mut indices = Vec::new();
+    
+    indices.push(validate_face_position(
         token_id,
         0,
-        SKIN_TONES_VALUE_COUNT,
-        "skin_tones",
-    )?;
-    validate_face_position(
-        token_id,
-        1,
-        REGIONAL_BONE_STRUCTURE_VALUE_COUNT,
-        "regional_bone_structure",
-    )?;
-    validate_face_position(
-        token_id,
-        2,
-        FACE_SHAPE_VALUE_COUNT,
-        "face_shape",
-    )?;
-    validate_face_position(
-        token_id,
-        3,
-        AGE_RELATED_VALUE_COUNT,
-        "age_related",
-    )?;
-    validate_face_position(
-        token_id,
-        4,
-        EYES_VALUE_COUNT,
-        "eyes",
-    )?;
-    validate_face_position(
-        token_id,
-        5,
-        EYEBROW_STYLE_VALUE_COUNT,
-        "eyebrow_style",
-    )?;
-    validate_face_position(
-        token_id,
-        6,
         OVERALL_STRUCTURE_VALUE_COUNT,
         "overall_structure",
-    )?;
-    validate_face_position(
+    )?);
+    indices.push(validate_face_position(
         token_id,
-        7,
-        NOSE_VALUE_COUNT,
-        "nose",
-    )?;
-    validate_face_position(
+        1,
+        FACE_SHAPE_VALUE_COUNT,
+        "face_shape",
+    )?);
+    indices.push(validate_face_position(
         token_id,
-        8,
+        2,
+        AGE_RELATED_VALUE_COUNT,
+        "age_related",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        3,
+        REGIONAL_BONE_STRUCTURE_VALUE_COUNT,
+        "regional_bone_structure",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        4,
         LIPS_VALUE_COUNT,
         "lips",
-    )?;
-    validate_face_position(
+    )?);
+    indices.push(validate_face_position(
         token_id,
-        9,
-        SKIN_CONDITIONS_VALUE_COUNT,
-        "skin_conditions",
-    )?;
-    validate_face_position(
-        token_id,
-        10,
+        5,
         HAIR_COLOR_VALUE_COUNT,
         "hair_color",
-    )?;
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        6,
+        EYEBROW_STYLE_VALUE_COUNT,
+        "eyebrow_style",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        7,
+        EYES_VALUE_COUNT,
+        "eyes",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        8,
+        SKIN_CONDITIONS_VALUE_COUNT,
+        "skin_conditions",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        9,
+        SKIN_TONES_VALUE_COUNT,
+        "skin_tones",
+    )?);
+    indices.push(validate_face_position(
+        token_id,
+        10,
+        NOSE_VALUE_COUNT,
+        "nose",
+    )?);
 
-    // Position 11 is reserved for future use and accepts any lowercase letter 'a'-'z'
+    // Validate checksum at position 11
     let bytes = token_id.as_bytes();
-    let reserved_char = bytes[11] as char;
+    let checksum_char = bytes[11] as char;
     
-    if !matches!(reserved_char, 'a'..='z') {
+    // Calculate expected checksum: sum of all indices mod CHARSET_ODD length (15)
+    let sum_indices: usize = indices.iter().sum();
+    let expected_checksum_index = sum_indices % CHARSET_ODD.len();
+    let expected_checksum_char = index_to_char(expected_checksum_index, 11)
+        .ok_or_else(|| format!("Failed to generate checksum character"))?;
+    
+    if checksum_char != expected_checksum_char {
         return Err(format!(
-            "Invalid character '{}' at position 11 (expected 'a'-'z')",
-            reserved_char
+            "Checksum mismatch at position 11: got '{}', expected '{}'",
+            checksum_char, expected_checksum_char
         ));
     }
 
@@ -540,7 +565,7 @@ fn validate_face_token_substring(token_id: &str) -> Result<(), String> {
 // Custom Distinguished Name (DN) Validation
 // =============================================================================
 // Supports RFC 2253-style DN format with custom attributes:
-//   NNSWF, NSWF, ContactURI, taxRes, inceptDateTime, inceptPlace, taxPayer,
+//   NNSWF, NSWF, ContactURI, taxRes, inceptDateTime, inceptPlace, taxCode,
 //   address, Creature, AvatarURL, EmojiURL
 // =============================================================================
 
@@ -567,7 +592,7 @@ pub const DN_KNOWN_ATTRIBUTES: &[&str] = &[
     "taxRes",         // Tax residence country (ISO 3166-1 alpha-2)
     "inceptDateTime", // Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
     "inceptPlace",    // Incept place (Plus Code)
-    "taxPayer",       // Tax payer ID (country-specific format)
+    "taxCode",        // Tax code/ID (country-specific format)
     "address",        // Contact address (Plus Code)
     "Creature",       // Creature descriptor
     "AvatarURL",      // HTTPS URL to avatar media
@@ -729,15 +754,15 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
                 return Err("inceptPlace must be Plus Code format (e.g., 9F4MGCH7+R6)".to_string());
             }
         }
-        "taxPayer" => {
+        "taxCode" => {
             // Country-specific format - allow alphanumeric with hyphens
             // Max 30 chars for most tax IDs worldwide
             if !value.is_empty() && value.len() > 30 {
-                return Err("taxPayer ID must be at most 30 characters".to_string());
+                return Err("taxCode must be at most 30 characters".to_string());
             }
             // Basic format: alphanumeric, hyphens, spaces allowed
             if !value.is_empty() && !value.chars().all(|c| c.is_alphanumeric() || c == '-' || c == ' ') {
-                return Err("taxPayer ID must contain only alphanumeric characters, hyphens, or spaces".to_string());
+                return Err("taxCode must contain only alphanumeric characters, hyphens, or spaces".to_string());
             }
         }
         "address" => {
@@ -785,7 +810,7 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
 /// - **taxRes**: Tax residence (ISO 3166-1 alpha-2)
 /// - **inceptDateTime**: Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
 /// - **inceptPlace**: Incept place (Plus Code)
-/// - **taxPayer**: Tax payer ID (country-specific, max 30 chars)
+/// - **taxCode**: Tax code/ID (country-specific, max 30 chars)
 /// - **address**: Contact address (Plus Code)
 /// - **Creature**: Descriptive label (max 50 printable characters)
 /// - **AvatarURL**: HTTPS URL for avatar media
@@ -861,7 +886,7 @@ mod dn_tests {
     #[test]
     fn test_full_dn_format() {
         // Test with placeholder data matching schema structure
-        let dn = "NNSWF=TestNameNotSharedWithFamily,NSWF=TestSurname,ContactURI=email:test.test:user,taxRes=XX,inceptDateTime=20000101120000Z,inceptPlace=8FVC9G8F+6X,taxPayer=000-00-0000,address=8FVC9G8F+6X,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg";
+        let dn = "NNSWF=TestNameNotSharedWithFamily,NSWF=TestSurname,ContactURI=email:test.test:user,taxRes=XX,inceptDateTime=20000101120000Z,inceptPlace=8FVC9G8F+6X,taxCode=000-00-0000,address=8FVC9G8F+6X,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg";
         assert!(validate_userselected_dn(dn).is_ok());
     }
 

@@ -66,8 +66,8 @@ pub const MIN_STORAGE_COST_PER_BYTE: u128 = 1_000_000_000_000_000_000; // 0.0000
 pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 
 // Rate limiting constants
-pub const RATE_LIMIT_WINDOW: u64 = 3600; // 1 hour in seconds
-pub const MAX_MINTS_PER_WINDOW: u64 = 100; // Maximum 100 mints per hour per account
+pub const RATE_LIMIT_WINDOW: u64 = 7200; // 2 hours in seconds
+pub const MAX_MINTS_PER_WINDOW: u64 = 200; // Maximum 200 mints per 2 hours per account
 
 /// DID:wba JSON-LD context describing the RODiT token vocabulary.
 /// This is provided as a constant string so it can be returned via a view
@@ -101,11 +101,25 @@ pub const DID_WBA_JSON_LD: &str = r#"{
     "dn_taxRes": "rodit:dn_taxResidence",
     "dn_inceptDateTime": { "@id": "rodit:dn_inceptDateTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime" },
     "dn_inceptPlace": "rodit:dn_inceptPlace",
-    "dn_taxPayer": "rodit:dn_taxPayerCode",
+    "dn_taxCode": "rodit:dn_taxCode",
     "dn_address": "rodit:dn_contactAddress",
     "dn_Creature": "rodit:dn_creatureDescriptor",
     "dn_AvatarURL": { "@id": "rodit:dn_avatarUrl", "@type": "@id" },
-    "dn_EmojiURL": { "@id": "rodit:dn_emojiUrl", "@type": "@id" }
+    "dn_EmojiURL": { "@id": "rodit:dn_emojiUrl", "@type": "@id" },
+    "facial_encoding": "rodit:facial_encoding",
+    "facial_categories": { "@id": "rodit:facial_categories", "@type": "@id" },
+    "skin_tones": "rodit:skin_tones",
+    "regional_bone_structure": "rodit:regional_bone_structure",
+    "face_shape": "rodit:face_shape",
+    "age_related": "rodit:age_related",
+    "eyes": "rodit:eyes",
+    "eyebrow_style": "rodit:eyebrow_style",
+    "overall_structure": "rodit:overall_structure",
+    "nose": "rodit:nose",
+    "lips": "rodit:lips",
+    "skin_conditions": "rodit:skin_conditions",
+    "hair_color": "rodit:hair_color",
+    "checksum": "rodit:checksum"
   }
 }"#;
 
@@ -659,7 +673,6 @@ impl Contract {
 
     /// View function returning the DID:wba JSON-LD context so that
     /// front-ends can discover the vocabulary directly from the contract.
-    // Deprecated: kept for backward compatibility – now embedded within contract metadata.
     pub fn did_wba_jsonld(&self) -> String {
         self.metadata.did_wba_jsonld.clone()
     }

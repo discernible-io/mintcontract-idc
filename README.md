@@ -645,7 +645,7 @@ NNSWF=NameNotSharedWithFamily,NSWF=NameSharedWithFamily,ContactURI=scheme:author
 | taxRes | No | Tax residence country | ISO 3166-1 alpha-2 | `US`, `GB`, `DE` |
 | inceptDateTime | No | Incept date/time | GeneralizedTime (YYYYMMDDHHMMSSZ) | `19900315120000Z` |
 | inceptPlace | No | Incept place | Plus Code | `9F4MGCH7+R6` |
-| taxPayer | No | Tax payer ID | Alphanumeric, max 30 chars | `123-45-6789` |
+| taxCode | No | Tax code/ID | Alphanumeric, max 30 chars | `123-45-6789` |
 | address | No | Contact address | Plus Code | `87G8Q23F+XF` |
 | Creature | No | Descriptive label | Printable UTF-8, max 50 chars | `Friendly Being` |
 | AvatarURL | No | Avatar media URL | HTTPS URL | `https://example.com/avatar.png` |
@@ -696,7 +696,7 @@ NNSWF=John,NSWF=Smith,ContactURI=email:gmail.com:jsmith,taxRes=US
 
 **Full format:**
 ```
-NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxPayer=123-45-6789,address=87G8Q23F+XF,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg
+NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxCode=123-45-6789,address=87G8Q23F+XF,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg
 ```
 
 #### Validation Rules
@@ -1217,10 +1217,9 @@ Where identityclaw.com is the controlling domain for the contract.
 
 If upgrading from an older contract version:
 
-1. **Automatic Migration**: The `upgrade()` function handles state migration
+1. **State Migration**: The `upgrade()` function handles state migration
 2. **New Fields**: All new fields are initialized with safe defaults
-3. **Backward Compatible**: Existing functions work as before
-4. **New Features**: Available immediately after upgrade
+3. **New Features**: Available immediately after upgrade
 
 **Post-Upgrade Checklist**:
 - [ ] Verify fees are set correctly: `get_fees`
@@ -1279,184 +1278,185 @@ If upgrading from an older contract version:
 
 This contract uses a compact facial `token_id` encoding for each minted token. The `token_id` is:
 
-- 12 lowercase ASCII letters (`a`–`z`)
+- 12 characters using position-specific safe character sets (no vowels or ambiguous letters)
 - Positions **0–10**: indices for 11 facial categories (in fixed order)
-- Position **11**: reserved for future use
+- Position **11**: checksum letter
+
+### Character Sets
+
+Alternating character sets (no vowels or ambiguous letters):
+- **CHARSET_EVEN**: `b, c, a, e, u, g` (6 chars) — positions 0, 2, 4, 6, 8, 10
+- **CHARSET_ODD**: `d, f, h, j, k, m, n, p, q, r, t, v, w, x, y` (15 chars) — positions 1, 3, 5, 7, 9, 11 (checksum)
 
 ### Encoding rules
 
 - For each category position `i` in `0..=10`:
-  - Letter `'a'` encodes index `0`, `'b'` encodes `1`, …, `'z'` encodes `25`.
-  - Index must be `<` the number of values in that category (see tables below).
-- Position **11** (reserved):
-  - Currently accepts any lowercase letter `'a'`–`'z'`.
-  - Reserved for future use (e.g., checksum validation or additional metadata).
+  - Use the position-specific character set (EVEN or ODD) to encode the index
+  - Index must be `<` the number of values in that category (see tables below)
+- Position **11** (checksum):
+  - Compute `sum_indices = Σ idx_i` for `i = 0..10`
+  - Compute `checksum_index = sum_indices % 15` (CHARSET_ODD length)
+  - Checksum letter is `CHARSET_ODD[checksum_index]`
 
 ### Category order (positions 0–10)
 
-0. `skin_tones`  
-1. `regional_bone_structure`  
-2. `face_shape`  
-3. `age_related`  
-4. `eyes`  
-5. `eyebrow_style`  
-6. `overall_structure`  
-7. `nose`  
-8. `lips`  
-9. `skin_conditions`  
-10. `hair_color`  
+Categories are ordered by value count to optimize charset usage:
 
-### `skin_tones` (position 0, 19 values)
+0. `overall_structure`  
+1. `face_shape`  
+2. `age_related`  
+3. `regional_bone_structure`  
+4. `lips`  
+5. `hair_color`  
+6. `eyebrow_style`  
+7. `eyes`  
+8. `skin_conditions`  
+9. `skin_tones`  
+10. `nose`  
 
-| Index | Letter | Value               |
-|-------|--------|---------------------|
-| 0     | a      | pale-skinned        |
-| 1     | b      | fair-skinned        |
-| 2     | c      | medium-skinned      |
-| 3     | d      | tan-skinned         |
-| 4     | e      | olive-skinned       |
-| 5     | f      | bronze-skinned      |
-| 6     | g      | dark-skinned        |
-| 7     | h      | ebony-skinned       |
-| 8     | i      | golden-skinned      |
-| 9     | j      | ivory-skinned       |
-| 10    | k      | peach-toned-skin    |
-| 11    | l      | rosy-skinned        |
-| 12    | m      | ruddy-skinned       |
-| 13    | n      | sallow-skinned      |
-| 14    | o      | ashen-skinned       |
-| 15    | p      | porcelain-skinned   |
-| 16    | q      | warm-toned-skin     |
-| 17    | r      | cool-toned-skin     |
-| 18    | s      | red-toned-skin      |
-
-### `regional_bone_structure` (position 1, 12 values)
-
-| Index | Letter | Value            |
-|-------|--------|------------------|
-| 0     | a      | Nordic           |
-| 1     | b      | Mediterranean    |
-| 2     | c      | Slavic           |
-| 3     | d      | East-Asian       |
-| 4     | e      | Southeast-Asian  |
-| 5     | f      | South-Asian      |
-| 6     | g      | West-African     |
-| 7     | h      | East-African     |
-| 8     | i      | Native-American  |
-| 9     | j      | Polynesian       |
-| 10    | k      | Celtic-features  |
-| 11    | l      | Turkish          |
-
-### `face_shape` (position 2, 15 values)
-
-| Index | Letter | Value                 |
-|-------|--------|-----------------------|
-| 0     | a      | oval-faced            |
-| 1     | b      | round-faced           |
-| 2     | c      | square-faced          |
-| 3     | d      | rectangular-faced     |
-| 4     | e      | heart-shaped-face     |
-| 5     | f      | diamond-shaped-face   |
-| 6     | g      | triangular-faced      |
-| 7     | h      | pear-shaped-face      |
-| 8     | i      | narrow-faced          |
-| 9     | j      | wide-faced            |
-| 10    | k      | angular-faced         |
-| 11    | l      | curved-faced          |
-| 12    | m      | asymmetrical-faced    |
-| 13    | n      | elongated-faced       |
-| 14    | o      | compact-faced         |
-
-### `age_related` (position 3, 5 values)
-
-| Index | Letter | Value            |
-|-------|--------|------------------|
-| 0     | a      | teenage-person   |
-| 1     | b      | young-adult-25   |
-| 2     | c      | middle-aged-50   |
-| 3     | d      | senior-65        |
-| 4     | e      | elderly-person   |
-
-### `eyes` (position 4, 10 values)
-
-| Index | Letter | Value               |
-|-------|--------|---------------------|
-| 0     | a      | small-eyes          |
-| 1     | b      | large-eyes          |
-| 2     | c      | deep-set-eyes       |
-| 3     | d      | prominent-eyes      |
-| 4     | e      | close-set-eyes      |
-| 5     | f      | wide-set-eyes       |
-| 6     | g      | almond-shaped-eyes  |
-| 7     | h      | upturned-eyes       |
-| 8     | i      | downturned-eyes     |
-| 9     | j      | monolid-eyes        |
-
-### `eyebrow_style` (position 5, 6 values)
-
-| Index | Letter | Value             |
-|-------|--------|-------------------|
-| 0     | a      | thick-eyebrows    |
-| 1     | b      | thin-eyebrows     |
-| 2     | c      | arched-eyebrows   |
-| 3     | d      | straight-eyebrows |
-| 4     | e      | bushy-eyebrows    |
-| 5     | f      | sparse-eyebrows   |
-
-### `overall_structure` (position 6, 2 values)
+### `overall_structure` (position 0, 2 values, uses CHARSET_EVEN: b,c,a,e,u,g)
 
 | Index | Letter | Value      |
 |-------|--------|------------|
-| 0     | a      | masculine  |
-| 1     | b      | feminine   |
+| 0     | b      | masculine  |
+| 1     | c      | feminine   |
 
-### `nose` (position 7, 6 values)
-
-| Index | Letter | Value          |
-|-------|--------|----------------|
-| 0     | a      | aquiline-nose  |
-| 1     | b      | button-nose    |
-| 2     | c      | Roman-nose     |
-| 3     | d      | snub-nose      |
-| 4     | e      | flared-nose    |
-| 5     | f      | pinched-nose   |
-
-### `lips` (position 8, 5 values)
-
-| Index | Letter | Value           |
-|-------|--------|-----------------|
-| 0     | a      | thin-lips       |
-| 1     | b      | full-lips       |
-| 2     | c      | pouty-lips      |
-| 3     | d      | defined-lips    |
-| 4     | e      | bow-shaped-lips |
-
-### `skin_conditions` (position 9, 6 values)
-
-| Index | Letter | Value    |
-|-------|--------|----------|
-| 0     | a      | freckled |
-| 1     | b      | spotted  |
-| 2     | c      | scarred  |
-| 3     | d      | lined    |
-| 4     | e      | wrinkled |
-| 5     | f      | clear    |
-
-### `hair_color` (position 10, 11 values)
+### `face_shape` (position 1, 15 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
 | Index | Letter | Value                 |
 |-------|--------|-----------------------|
-| 0     | a      | black-hair            |
-| 1     | b      | dark-brown-hair       |
-| 2     | c      | brown-hair            |
-| 3     | d      | light-brown-hair      |
-| 4     | e      | blonde-hair           |
-| 5     | f      | platinum-blonde-hair  |
-| 6     | g      | red-hair              |
-| 7     | h      | auburn-hair           |
-| 8     | i      | gray-hair             |
-| 9     | j      | white-hair            |
-| 10    | k      | silver-hair           |
+| 0     | d      | oval-faced            |
+| 1     | f      | round-faced           |
+| 2     | h      | square-faced          |
+| 3     | j      | rectangular-faced     |
+| 4     | k      | heart-shaped-face     |
+| 5     | m      | diamond-shaped-face   |
+| 6     | n      | triangular-faced      |
+| 7     | p      | pear-shaped-face      |
+| 8     | q      | narrow-faced          |
+| 9     | r      | wide-faced            |
+| 10    | t      | angular-faced         |
+| 11    | v      | curved-faced          |
+| 12    | w      | asymmetrical-faced    |
+| 13    | x      | elongated-faced       |
+| 14    | y      | compact-faced         |
+
+### `age_related` (position 2, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | b      | teenage-person   |
+| 1     | c      | young-adult-25   |
+| 2     | a      | middle-aged-50   |
+| 3     | e      | senior-65        |
+| 4     | u      | elderly-person   |
+
+### `regional_bone_structure` (position 3, 12 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | d      | Nordic           |
+| 1     | f      | Mediterranean    |
+| 2     | h      | Slavic           |
+| 3     | j      | East-Asian       |
+| 4     | k      | Southeast-Asian  |
+| 5     | m      | South-Asian      |
+| 6     | n      | West-African     |
+| 7     | p      | East-African     |
+| 8     | q      | Native-American  |
+| 9     | r      | Polynesian       |
+| 10    | t      | Celtic-features  |
+| 11    | v      | Turkish          |
+
+### `lips` (position 4, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value           |
+|-------|--------|-----------------|
+| 0     | b      | thin-lips       |
+| 1     | c      | full-lips       |
+| 2     | a      | pouty-lips      |
+| 3     | e      | defined-lips    |
+| 4     | u      | bow-shaped-lips |
+
+### `hair_color` (position 5, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value                 |
+|-------|--------|-----------------------|
+| 0     | d      | black-hair            |
+| 1     | f      | dark-brown-hair       |
+| 2     | h      | brown-hair            |
+| 3     | j      | light-brown-hair      |
+| 4     | k      | blonde-hair           |
+| 5     | m      | platinum-blonde-hair  |
+| 6     | n      | red-hair              |
+| 7     | p      | auburn-hair           |
+| 8     | q      | gray-hair             |
+| 9     | r      | white-hair            |
+| 10    | t      | silver-hair           |
+
+### `eyebrow_style` (position 6, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value             |
+|-------|--------|-------------------|
+| 0     | b      | thick-eyebrows    |
+| 1     | c      | thin-eyebrows     |
+| 2     | a      | arched-eyebrows   |
+| 3     | e      | straight-eyebrows |
+| 4     | u      | bushy-eyebrows    |
+| 5     | g      | sparse-eyebrows   |
+
+### `eyes` (position 7, 10 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | d      | small-eyes          |
+| 1     | f      | large-eyes          |
+| 2     | h      | deep-set-eyes       |
+| 3     | j      | prominent-eyes      |
+| 4     | k      | close-set-eyes      |
+| 5     | m      | wide-set-eyes       |
+| 6     | n      | almond-shaped-eyes  |
+| 7     | p      | upturned-eyes       |
+| 8     | q      | downturned-eyes     |
+| 9     | r      | monolid-eyes        |
+
+### `skin_conditions` (position 8, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value    |
+|-------|--------|----------|
+| 0     | b      | freckled |
+| 1     | c      | spotted  |
+| 2     | a      | scarred  |
+| 3     | e      | lined    |
+| 4     | u      | wrinkled |
+| 5     | g      | clear    |
+
+### `skin_tones` (position 9, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | d      | pale-skinned        |
+| 1     | f      | fair-skinned        |
+| 2     | h      | medium-skinned      |
+| 3     | j      | tan-skinned         |
+| 4     | k      | olive-skinned       |
+| 5     | m      | dark-skinned        |
+| 6     | n      | ebony-skinned       |
+| 7     | p      | ivory-skinned       |
+| 8     | q      | peach-toned-skin    |
+| 9     | r      | rosy-skinned        |
+| 10    | t      | red-toned-skin      |
+
+### `nose` (position 10, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value          |
+|-------|--------|----------------|
+| 0     | b      | aquiline-nose  |
+| 1     | c      | button-nose    |
+| 2     | a      | Roman-nose     |
+| 3     | e      | snub-nose      |
+| 4     | u      | flared-nose    |
+| 5     | g      | pinched-nose   |
 
 ---
 

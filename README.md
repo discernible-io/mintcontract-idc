@@ -432,7 +432,7 @@ pub struct Contract {
 
 Defined in `src/lib.rs`:
 
-- `RODIT_METADATA_SPEC`: `"Discernible-near.org-20260404"` - Contract version
+- `RODIT_METADATA_SPEC`: `"IdentityClaw-near.org-20260404"` - Contract version
 - `CONTRACT_NAME`: `"2026v1-identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
@@ -598,7 +598,7 @@ pub struct TokenMetadata {
 
 ### Contract Constants
 
-- `RODIT_METADATA_SPEC = "Discernible-near.org-20260404"`
+- `RODIT_METADATA_SPEC = "IdentityClaw-near.org-20260404"`
 - Issuer URL: `"2026v1-identyclaw-com"`
 
 ---
@@ -1143,7 +1143,7 @@ All events use this envelope:
 ```json
 {
   "standard": "PENDING nepXXX",
-  "version": "Discernible-near.org-20260404",
+  "version": "IdentityClaw-near.org-20260404",
   "event": "<event_name>",
   "data": [ { /* event-specific object */ } ]
 }

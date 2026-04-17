@@ -332,6 +332,137 @@ pub fn validate_token_metadata(
     Ok(())
 }
 
+/// Validates a facial token ID in either short or full RODiT format
+/// 
+/// Accepts both formats:
+/// - **Short format**: Just the 12-character facial token ID (e.g., "bjuveperbngn")
+/// - **Full RODiT format**: Complete format with bc, sc, and one or more id fields
+///   (e.g., "bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn")
+///   (e.g., "bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm")
+/// 
+/// # Arguments
+/// * `token_id` - The token ID string in either short or full RODiT format
+/// 
+/// # Returns
+/// * `Result<(), String>` - Ok(()) if all facial token IDs are valid, Err with message otherwise
+/// 
+/// # Examples
+/// ```
+/// // Short format (from signportal.js)
+/// validate_face_token_id("bjuveperbngn").unwrap();
+/// 
+/// // Full RODiT format (from signroot.js)
+/// validate_face_token_id("bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn").unwrap();
+/// 
+/// // Combined format with two tokens
+/// validate_face_token_id("bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm").unwrap();
+/// ```
+pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
+    if token_id.is_empty() {
+        return Err("Token ID cannot be empty".to_string());
+    }
+
+    // Check if it's the full RODiT format or short format
+    if token_id.contains("bc=") || token_id.contains("sc=") || token_id.contains("id=") {
+        // Full RODiT format: extract and validate each id= value
+        let facial_ids: Vec<&str> = token_id
+            .split(';')
+            .filter_map(|part| {
+                if part.starts_with("id=") {
+                    Some(&part[3..])  // Extract the value after "id="
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        if facial_ids.is_empty() {
+            return Err("No facial token IDs found in token_id string (expected at least one 'id=' field)".to_string());
+        }
+        
+        // Validate each facial token ID
+        for (idx, facial_id) in facial_ids.iter().enumerate() {
+            validate_single_facial_token(facial_id, idx + 1)?;
+        }
+    } else {
+        // Short format: validate directly as a single 12-character ID
+        validate_single_facial_token(&token_id, 1)?;
+    }
+    
+    Ok(())
+}
+
+/// Validates a single facial token ID in the strict 12-character format
+/// 
+/// # Arguments
+/// * `facial_id` - The 12-character facial token ID to validate
+/// * `token_number` - The token number for error reporting (1, 2, etc.)
+/// 
+/// # Returns
+/// * `Result<(), String>` - Ok(()) if valid, Err with message otherwise
+fn validate_single_facial_token(facial_id: &str, token_number: usize) -> Result<(), String> {
+    if facial_id.len() != 12 {
+        return Err(format!(
+            "Facial token ID #{} validation failed: Invalid facial token ID: must be exactly 12 characters (got {})",
+            token_number,
+            facial_id.len()
+        ));
+    }
+    
+    // Character set validation
+    const CHARSET_EVEN: &[u8] = b"bcaeug";
+    const CHARSET_ODD: &[u8] = b"dfhjkmnpqrtvwxy";
+    
+    let bytes = facial_id.as_bytes();
+    
+    // Validate character positions and charsets
+    for (i, &byte) in bytes.iter().enumerate() {
+        if i % 2 == 0 {
+            // Even positions use CHARSET_EVEN
+            if !CHARSET_EVEN.contains(&byte) {
+                return Err(format!(
+                    "Facial token ID #{} validation failed: Invalid character at position {}: '{}' not in allowed charset for even positions",
+                    token_number, i, byte as char
+                ));
+            }
+        } else {
+            // Odd positions use CHARSET_ODD
+            if !CHARSET_ODD.contains(&byte) {
+                return Err(format!(
+                    "Facial token ID #{} validation failed: Invalid character at position {}: '{}' not in allowed charset for odd positions",
+                    token_number, i, byte as char
+                ));
+            }
+        }
+    }
+    
+    // Validate checksum at position 11
+    let checksum_byte = bytes[11];
+    let mut checksum_sum: u32 = 0;
+    
+    for i in 0..11 {
+        let byte = bytes[i];
+        let charset = if i % 2 == 0 { CHARSET_EVEN } else { CHARSET_ODD };
+        if let Some(index) = charset.iter().position(|&c| c == byte) {
+            checksum_sum += index as u32;
+        }
+    }
+    
+    let expected_checksum_index = (checksum_sum % 15) as usize;
+    if let Some(expected_byte) = CHARSET_ODD.get(expected_checksum_index) {
+        if checksum_byte != *expected_byte {
+            return Err(format!(
+                "Facial token ID #{} validation failed: Invalid checksum: expected '{}' at position 11, got '{}'",
+                token_number, *expected_byte as char, checksum_byte as char
+            ));
+        }
+    } else {
+        return Err(format!("Facial token ID #{} validation failed: Checksum validation failed: invalid index", token_number));
+    }
+    
+    Ok(())
+}
+
 // =============================================================================
 // FACIAL TOKEN ID ENCODING SPECIFICATION
 // =============================================================================
@@ -438,22 +569,6 @@ fn validate_face_position(
     }
 
     Ok(index)
-}
-
-pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
-    if token_id.len() != FACE_TOKEN_ID_LENGTH {
-        return Err(format!(
-            "Invalid token_id: must be exactly {} characters (got {})",
-            FACE_TOKEN_ID_LENGTH,
-            token_id.len()
-        ));
-    }
-
-    if !token_id.is_ascii() {
-        return Err("token_id must contain only ASCII characters".to_string());
-    }
-
-    validate_face_token_substring(token_id)
 }
 
 /// Helper function to validate a specific 12-character substring as a facial token

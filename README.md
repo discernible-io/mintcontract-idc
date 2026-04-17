@@ -1378,7 +1378,7 @@ Categories are ordered by value count to optimize charset usage:
 | 3     | e      | defined-lips    |
 | 4     | u      | bow-shaped-lips |
 
-### `hair_color` (position 5, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+### `hair_color` (position 5, 12 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
 | Index | Letter | Value                 |
 |-------|--------|-----------------------|
@@ -1393,6 +1393,7 @@ Categories are ordered by value count to optimize charset usage:
 | 8     | q      | gray-hair             |
 | 9     | r      | white-hair            |
 | 10    | t      | silver-hair           |
+| 11    | v      | bald                  |
 
 ### `eyebrow_style` (position 6, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
 

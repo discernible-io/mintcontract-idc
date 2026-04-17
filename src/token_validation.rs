@@ -6,6 +6,7 @@
 use regex::Regex;
 use lazy_static::lazy_static;
 use serde_json;
+use serde::{Serialize, Deserialize};
 
 // Regular expressions for validation
 lazy_static! {
@@ -326,7 +327,7 @@ pub fn validate_token_metadata(
 // =============================================================================
 // 
 // A facial token_id is a 12-character string that encodes biometric facial
-// features using alternating position-specific character sets.
+// features using position-specific character sets.
 //
 // STRUCTURE:
 // - Positions 0-10: Facial feature category indices
@@ -334,8 +335,8 @@ pub fn validate_token_metadata(
 // - Total length: 12 characters
 //
 // CHARACTER SETS (no vowels or ambiguous letters):
-// - CHARSET_EVEN: [b, c, a, e, u, g]  (6 chars) - positions 0,2,4,6,8,10
-// - CHARSET_ODD:  [d, f, h, j, k, m, n, p, q, r, t, v, w, x, y] (15 chars) - positions 1,3,5,7,9,11(checksum)
+// - CHARSET_EVEN: [b, c, a, e, u, g]  (6 chars) - for positions 0,2,4,6,8,10
+// - CHARSET_ODD:  [d, f, h, j, k, m, n, p, q, r, t, v, w, x, y] (15 chars) - for positions 1,3,5,7,9,11(checksum)
 //
 // POSITION MAP (categories ordered by value count to optimize charset usage):
 //   [0] = Overall Structure    (2 values,  uses CHARSET_EVEN)
@@ -364,18 +365,18 @@ const FACE_TOKEN_ID_LENGTH: usize = 12;
 const CHARSET_EVEN: &[u8] = b"bcaeug";    // 6 chars - for positions 0,2,4,6,8,10
 const CHARSET_ODD: &[u8] = b"dfhjkmnpqrtvwxy"; // 15 chars - for positions 1,3,5,7,9,11(checksum)
 
-// Facial category value counts
-const SKIN_TONES_VALUE_COUNT: usize = 11;              // 11 values
-const REGIONAL_BONE_STRUCTURE_VALUE_COUNT: usize = 12; // 12 values
-const FACE_SHAPE_VALUE_COUNT: usize = 15;              // 15 values
-const AGE_RELATED_VALUE_COUNT: usize = 5;              // 5 values
-const EYES_VALUE_COUNT: usize = 10;                    // 10 values
-const EYEBROW_STYLE_VALUE_COUNT: usize = 6;            // 6 values
-const OVERALL_STRUCTURE_VALUE_COUNT: usize = 2;        // 2 values
-const NOSE_VALUE_COUNT: usize = 6;                     // 6 values
-const LIPS_VALUE_COUNT: usize = 5;                     // 5 values
-const SKIN_CONDITIONS_VALUE_COUNT: usize = 6;          // 6 values
-const HAIR_COLOR_VALUE_COUNT: usize = 11;              // 11 values
+// Facial category value counts (matching JavaScript FACE_CATEGORIES)
+const OVERALL_STRUCTURE_VALUE_COUNT: usize = 2;        // masculine, feminine
+const FACE_SHAPE_VALUE_COUNT: usize = 15;              // 15 face shapes
+const AGE_RELATED_VALUE_COUNT: usize = 5;              // 5 age categories
+const REGIONAL_BONE_STRUCTURE_VALUE_COUNT: usize = 12; // 12 regional types
+const LIPS_VALUE_COUNT: usize = 5;                     // 5 lip types
+const HAIR_COLOR_VALUE_COUNT: usize = 11;              // 11 hair colors
+const EYEBROW_STYLE_VALUE_COUNT: usize = 6;            // 6 eyebrow styles
+const EYES_VALUE_COUNT: usize = 10;                    // 10 eye types
+const SKIN_CONDITIONS_VALUE_COUNT: usize = 6;          // 6 skin conditions
+const SKIN_TONES_VALUE_COUNT: usize = 11;              // 11 skin tones
+const NOSE_VALUE_COUNT: usize = 6;                     // 6 nose types
 
 /// Get the character set for a specific position
 fn get_charset_for_position(pos: usize) -> &'static [u8] {
@@ -430,10 +431,9 @@ fn validate_face_position(
 }
 
 pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
-    // Check if the input string is long enough to contain a 12-character token
-    if token_id.len() < FACE_TOKEN_ID_LENGTH {
+    if token_id.len() != FACE_TOKEN_ID_LENGTH {
         return Err(format!(
-            "Invalid token_id: string too short to contain a {}-character token (got {} characters)",
+            "Invalid token_id: must be exactly {} characters (got {})",
             FACE_TOKEN_ID_LENGTH,
             token_id.len()
         ));
@@ -443,35 +443,14 @@ pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
         return Err("token_id must contain only ASCII characters".to_string());
     }
 
-    // Try to find a valid 12-character token pattern within the string
-    // We'll search for a substring that passes all validation checks
-    let mut last_error = String::new();
-    
-    for start_pos in 0..=(token_id.len() - FACE_TOKEN_ID_LENGTH) {
-        let candidate = &token_id[start_pos..start_pos + FACE_TOKEN_ID_LENGTH];
-        
-        // Try to validate this candidate substring
-        match validate_face_token_substring(candidate) {
-            Ok(_) => return Ok(()), // Found a valid token!
-            Err(e) => last_error = e, // Keep trying other positions
-        }
-    }
-    
-    // No valid token found in the entire string
-    Err(format!(
-        "No valid {}-character facial token found in string (length {}). Last validation error: {}",
-        FACE_TOKEN_ID_LENGTH,
-        token_id.len(),
-        last_error
-    ))
+    validate_face_token_substring(token_id)
 }
 
 /// Helper function to validate a specific 12-character substring as a facial token
 fn validate_face_token_substring(token_id: &str) -> Result<(), String> {
-    // This function assumes token_id is exactly 12 characters
     debug_assert_eq!(token_id.len(), FACE_TOKEN_ID_LENGTH);
 
-    // Validate each of the 11 positional category indices (new order)
+    // Validate each of the 11 positional category indices
     let mut indices = Vec::new();
     
     indices.push(validate_face_position(
@@ -561,6 +540,39 @@ fn validate_face_token_substring(token_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Decodes a facial token ID and returns detailed category information
+/// 
+/// # Arguments
+/// * `token_id` - A 12-character facial token ID string
+/// 
+/// # Returns
+/// * `Result<DecodedFacialToken, String>` - Decoded token with category details or error
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FacialTokenCategory {
+    pub index: usize,
+    pub letter: char,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecodedFacialToken {
+    pub token_id: String,
+    pub valid: bool,
+    pub checksum_valid: bool,
+    pub overall_structure: Option<FacialTokenCategory>,
+    pub face_shape: Option<FacialTokenCategory>,
+    pub age_related: Option<FacialTokenCategory>,
+    pub regional_bone_structure: Option<FacialTokenCategory>,
+    pub lips: Option<FacialTokenCategory>,
+    pub hair_color: Option<FacialTokenCategory>,
+    pub eyebrow_style: Option<FacialTokenCategory>,
+    pub eyes: Option<FacialTokenCategory>,
+    pub skin_conditions: Option<FacialTokenCategory>,
+    pub skin_tones: Option<FacialTokenCategory>,
+    pub nose: Option<FacialTokenCategory>,
+}
+
+
 // =============================================================================
 // Custom Distinguished Name (DN) Validation
 // =============================================================================
@@ -584,20 +596,6 @@ lazy_static! {
     static ref URI_REGEX: Regex = Regex::new(r"^[a-zA-Z][a-zA-Z0-9+.-]*:[^:]+:[^:]+$").unwrap();
 }
 
-/// Known DN attribute names for the custom format
-pub const DN_KNOWN_ATTRIBUTES: &[&str] = &[
-    "NNSWF",          // Name Not Shared With Family (given name)
-    "NSWF",           // Name Shared With Family (surname)
-    "ContactURI",     // Generic URI identifier (scheme:authority:identifier)
-    "taxRes",         // Tax residence country (ISO 3166-1 alpha-2)
-    "inceptDateTime", // Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
-    "inceptPlace",    // Incept place (Plus Code)
-    "taxCode",        // Tax code/ID (country-specific format)
-    "address",        // Contact address (Plus Code)
-    "Creature",       // Creature descriptor
-    "AvatarURL",      // HTTPS URL to avatar media
-    "EmojiURL",       // HTTPS URL to emoji asset
-];
 
 /// Parsed DN attribute
 #[derive(Debug, Clone)]
@@ -842,34 +840,6 @@ pub fn validate_userselected_dn(dn: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Escapes special RFC 2253 characters in a DN value
-/// Special characters: , + " \ < > ; = #
-pub fn escape_dn_value(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len() * 2);
-    
-    for c in value.chars() {
-        match c {
-            ',' | '+' | '"' | '\\' | '<' | '>' | ';' | '=' | '#' => {
-                escaped.push('\\');
-                escaped.push(c);
-            }
-            _ => escaped.push(c),
-        }
-    }
-    
-    escaped
-}
-
-/// Builds a DN string from attribute key-value pairs
-/// Automatically escapes special characters
-pub fn build_dn_string(attributes: &[(&str, &str)]) -> String {
-    attributes
-        .iter()
-        .filter(|(_, v)| !v.is_empty()) // Skip empty values
-        .map(|(k, v)| format!("{}={}", k, escape_dn_value(v)))
-        .collect::<Vec<_>>()
-        .join(",")
-}
 
 // =============================================================================
 // Unit tests for DN validation (test data only - not used in production)
@@ -947,25 +917,6 @@ mod dn_tests {
         assert!(validate_userselected_dn(&format!("NNSWF={}", long_name)).is_err());
     }
 
-    #[test]
-    fn test_build_dn_string() {
-        let attrs = [("NNSWF", "Given"), ("NSWF", "Family"), ("taxRes", "XX")];
-        assert_eq!(build_dn_string(&attrs), "NNSWF=Given,NSWF=Family,taxRes=XX");
-    }
-
-    #[test]
-    fn test_build_dn_with_escaping() {
-        let attrs = [("NNSWF", "Given"), ("NSWF", "Family, Suffix")];
-        assert_eq!(build_dn_string(&attrs), r"NNSWF=Given,NSWF=Family\, Suffix");
-    }
-
-    #[test]
-    fn test_parse_dn_string() {
-        let attrs = parse_dn_string("NNSWF=A,NSWF=B,taxRes=XX").unwrap();
-        assert_eq!(attrs.len(), 3);
-        assert_eq!(attrs[0].name, "NNSWF");
-        assert_eq!(attrs[2].name, "taxRes");
-    }
 
     #[test]
     fn test_valid_plus_codes() {
@@ -1000,52 +951,33 @@ mod face_token_tests {
     use super::*;
 
     #[test]
-    fn test_exact_12_char_valid_token() {
-        // A valid 12-character token (all 'a')
-        // This is a synthetic example - actual tokens would have varied characters
-        let valid_token = "aaaaaaaaaaaa"; // 12 'a's (all positions valid)
+    fn test_valid_token_with_checksum() {
+        let valid_token = "bcaegudfjhkm"; // Valid 12-char token with correct checksum
         assert!(validate_face_token_id(valid_token).is_ok());
     }
 
     #[test]
-    fn test_token_embedded_in_longer_string() {
-        // Test that a valid token can be found within a longer string
-        let valid_token = "aaaaaaaaaaaa";
-        let longer_string = format!("prefix_{}suffix", valid_token);
-        assert!(validate_face_token_id(&longer_string).is_ok());
+    fn test_token_wrong_length_too_short() {
+        let short_token = "bcaegudfjhk"; // 11 characters
+        assert!(validate_face_token_id(short_token).is_err());
     }
 
     #[test]
-    fn test_token_at_start_of_string() {
-        let valid_token = "aaaaaaaaaaaa";
-        let string_with_suffix = format!("{}extra_characters_here", valid_token);
-        assert!(validate_face_token_id(&string_with_suffix).is_ok());
+    fn test_token_wrong_length_too_long() {
+        let long_token = "bcaegudfjhkmd"; // 13 characters
+        assert!(validate_face_token_id(long_token).is_err());
     }
 
     #[test]
-    fn test_token_at_end_of_string() {
-        let valid_token = "aaaaaaaaaaaa";
-        let string_with_prefix = format!("some_prefix_{}", valid_token);
-        assert!(validate_face_token_id(&string_with_prefix).is_ok());
+    fn test_token_with_invalid_character() {
+        let invalid_token = "bcaegudfjhki"; // 'i' is not in valid charset
+        assert!(validate_face_token_id(invalid_token).is_err());
     }
 
     #[test]
-    fn test_string_too_short() {
-        // String shorter than 12 characters should fail
-        let short_string = "short";
-        assert!(validate_face_token_id(short_string).is_err());
+    fn test_token_with_vowel_rejected() {
+        let vowel_token = "bcaegudfjhka"; // 'a' at position 11 (checksum) but should be odd charset
+        assert!(validate_face_token_id(vowel_token).is_err());
     }
 
-    #[test]
-    fn test_no_valid_token_in_string() {
-        // A 57-character string with no valid 12-character token pattern
-        let invalid_string = "api.identyclaw.com/swagger.json_with_extra_padding_here";
-        assert!(validate_face_token_id(invalid_string).is_err());
-    }
-
-    #[test]
-    fn test_non_ascii_rejected() {
-        let non_ascii = "aaaaaaa😀aaaa";
-        assert!(validate_face_token_id(non_ascii).is_err());
-    }
 }

@@ -35,16 +35,27 @@ add_custom_network_connection() {
     base_network="$connection_name"
   fi
 
-  echo "Adding custom network connection: $connection_name"
+  echo "Checking network connection: $connection_name"
   echo "RPC URL: $rpc_url"
   echo "Base network: $base_network"
 
-  $NEAR_CLI config add-connection \
+  # Check if connection already exists in the config file
+  local config_file="$HOME/.config/near-cli/config.toml"
+  if [ -f "$config_file" ] && grep -q "\[network_connection\.$connection_name\]" "$config_file"; then
+    echo "Network connection '$connection_name' already exists. Skipping configuration."
+    echo ""
+    return
+  fi
+
+  echo "Adding custom network connection: $connection_name"
+
+  # Use printf with down arrow and enter to select "No" (second option)
+  printf "\033[B\n" | $NEAR_CLI config add-connection \
     --network-name "$base_network" \
     --connection-name "$connection_name" \
     --rpc-url "$rpc_url" \
     --wallet-url "https://app.mynearwallet.com/" \
-    --explorer-transaction-url "https://explorer.near.org/transactions/"
+    --explorer-transaction-url "https://explorer.near.org/transactions/" 2>/dev/null
 
   if [ $? -ne 0 ]; then
     echo "Warning: Failed to add custom network connection. Proceeding with existing configuration."
@@ -98,7 +109,7 @@ COMMANDS:
                - Can be called at any time after deployment.
 
 ARGUMENTS:
-  account_id   NEAR account ID that owns the contract (e.g., roditcorp-com.near)
+  account_id   NEAR account ID that owns the contract (e.g., 2026v1-identyclaw-com.near)
   network      Optional network connection name (default: testnet)
   rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
   signerN      Authorized signer public keys to add (64 lowercase hex characters)
@@ -112,21 +123,22 @@ NOTES:
 
 EXAMPLES:
   1. Initial deployment to testnet (no custom RPC):
-       ./deploy.sh deploy roditcorp-com.near
+       ./deploy.sh deploy 2026v1-identyclaw-com.near
 
   2. Upgrade existing contract on mainnet:
-       ./deploy.sh deploy roditcorp-com.near mainnet
+       ./deploy.sh deploy 2026v1-identyclaw-com.near mainnet
 
   3. Deploy using a custom RPC endpoint:
-       ./deploy.sh deploy roditcorp-com.near mainnet-custom https://rpc.mainnet.near.org
+       ./deploy.sh deploy 2026v1-identyclaw-com.near mainnet-custom https://rpc.mainnet.near.org
 
   4. Add authorized signers on testnet (no custom RPC):
-       ./deploy.sh add-signers roditcorp-com.near testnet "" \
+       ./deploy.sh add-signers 2026v1-identyclaw-com.near testnet "" \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
-         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac
+         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \
+         3467c4e8f5b0445d474742f976d24ca1991d843f58d8b9aaf45e6b6b8ff6603a
 
   5. Add signers using default network (testnet) — network argument omitted:
-       ./deploy.sh add-signers roditcorp-com.near \
+       ./deploy.sh add-signers 2026v1-identyclaw-com.near \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
 
 EOF
@@ -148,6 +160,9 @@ POLLING_INTERVAL=10  # Check status every 10 seconds
 BUFFER_SECONDS=10  # Add a small buffer to the delay time
 # Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
 INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
+# FastNEAR RPC endpoints (recommended)
+FASTNEAR_MAINNET_RPC="https://free.rpc.fastnear.com/"
+FASTNEAR_TESTNET_RPC="https://free.rpc.fastnear.com/"
 
 AUTHORIZED_SIGNERS=()
 
@@ -214,7 +229,18 @@ case "$COMMAND" in
     ;;
 esac
 
-# Configure custom RPC connection if provided
+# Configure custom RPC connection if provided, otherwise use FastNEAR by default
+if [ -z "$CUSTOM_RPC_URL" ]; then
+  # Use FastNEAR RPC by default
+  if [[ "$NETWORK" == "mainnet"* ]]; then
+    CUSTOM_RPC_URL="$FASTNEAR_MAINNET_RPC"
+    NETWORK="mainnet-fastnear"
+  elif [[ "$NETWORK" == "testnet"* ]]; then
+    CUSTOM_RPC_URL="$FASTNEAR_TESTNET_RPC"
+    NETWORK="testnet-fastnear"
+  fi
+fi
+
 if [ -n "$CUSTOM_RPC_URL" ]; then
   add_custom_network_connection
 fi
@@ -244,6 +270,19 @@ else
 fi
 echo
 
+# Step 0.5: Pin dependencies to versions compatible with Rust 1.86.0
+# This is needed because newer versions of darling (0.23+) and serde_with (3.18+)
+# require Rust 1.88.0, but near-sdk uses loose version constraints (e.g., "3" for serde_with)
+# which causes Cargo to resolve to the latest incompatible versions.
+echo "Step 0.5: Pinning dependencies to Rust 1.86.0-compatible versions..."
+cargo update --package serde_with --precise 3.17.0 2>/dev/null || true
+cargo update --package serde_with_macros --precise 3.17.0 2>/dev/null || true
+cargo update --package darling --precise 0.20.10 2>/dev/null || true
+cargo update --package darling_core --precise 0.20.10 2>/dev/null || true
+cargo update --package darling_macro --precise 0.20.10 2>/dev/null || true
+echo "Dependencies pinned successfully."
+echo
+
 # Step 1: Build the contract
 echo "Step 1: Building contract..."
 cargo near build non-reproducible-wasm --no-abi
@@ -256,12 +295,12 @@ echo
 
 # Initial deployment detection and flow
 echo "Checking if contract is already initialized on $ACCOUNT_ID ..."
-if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status network-config "$NETWORK" now >/dev/null 2>&1; then
+if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/dev/null 2>&1; then
   echo "No initialized contract detected. Performing initial deploy + init."
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/rodit_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -306,7 +345,7 @@ TOTAL_WAIT_TIME=$((UPGRADE_DELAY_SECONDS + BUFFER_SECONDS))
 ELAPSED_TIME=0
 
 while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
-  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
+  REMAINING=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK 2>/dev/null | tail -n 1 | tr -d ' ')
   
   # Check if the result is a number
   if [[ $REMAINING =~ ^[0-9]+$ ]]; then
@@ -327,7 +366,7 @@ while [ $ELAPSED_TIME -lt $TOTAL_WAIT_TIME ]; do
   
   # If we've waited longer than expected, check if we can proceed anyway
   if [ $ELAPSED_TIME -ge $TOTAL_WAIT_TIME ]; then
-    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status network-config $NETWORK now 2>/dev/null | tail -n 1 | tr -d ' ')
+    FINAL_CHECK=$($NEAR_CLI view $ACCOUNT_ID get_upgrade_status --network-id $NETWORK 2>/dev/null | tail -n 1 | tr -d ' ')
     if [ "$FINAL_CHECK" -eq "0" ]; then
       echo "Upgrade delay period has completed!"
       break
@@ -362,7 +401,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/rodit_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1
@@ -372,7 +411,7 @@ echo
 
 # Step 6: Resume the contract
 echo "Step 6: Resuming contract..."
-$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --deposit 0
+$NEAR_CLI call $ACCOUNT_ID resume_contract '{}' --use-account $ACCOUNT_ID --network-id $NETWORK --gas 100000000000000 --depositYocto 1
 if [ $? -ne 0 ]; then
   echo "Error: Failed to resume contract"
   exit 1

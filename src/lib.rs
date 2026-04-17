@@ -26,7 +26,7 @@
 //! 
 //! ## Version
 //! 
-//! Contract version: RODiTCorp-near.org-20251027
+//! Contract version: Discernible-near.org-20260404
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap, UnorderedSet, Vector};
@@ -44,13 +44,13 @@ mod events;
 mod storage;
 mod upgrade;
 
-use token_validation::validate_token_metadata;
+use token_validation::{validate_token_metadata, validate_face_token_id, validate_userselected_dn};
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "RODiTCorp-near.org-20251027";
+pub const RODIT_METADATA_SPEC: &str = "Discernible-2026v1-identyclaw-com-20260404";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const CONTRACT_NAME: &str = "20251027.rodit.org";
+pub const CONTRACT_NAME: &str = "2026v1-identyclaw-com";
 
 // Default fee values - can be overridden by contract owner
 pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
@@ -66,8 +66,8 @@ pub const MIN_STORAGE_COST_PER_BYTE: u128 = 1_000_000_000_000_000_000; // 0.0000
 pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 
 // Rate limiting constants
-pub const RATE_LIMIT_WINDOW: u64 = 3600; // 1 hour in seconds
-pub const MAX_MINTS_PER_WINDOW: u64 = 10; // Maximum 10 mints per hour per account
+pub const RATE_LIMIT_WINDOW: u64 = 7200; // 2 hours in seconds
+pub const MAX_MINTS_PER_WINDOW: u64 = 200; // Maximum 200 mints per 2 hours per account
 
 /// DID:wba JSON-LD context describing the RODiT token vocabulary.
 /// This is provided as a constant string so it can be returned via a view
@@ -76,7 +76,7 @@ pub const DID_WBA_JSON_LD: &str = r#"{
   "@context": {
     "id": "@id",
     "type": "@type",
-    "rodit": "https://rodit.org/ns/rodit#",
+    "rodit": "https://identityclaw.com/ns/rodit#",
     "token_id": "rodit:token_id",
     "allowed_cidr": "rodit:allowed_cidr",
     "allowed_iso3166list": "rodit:allowed_iso3166list",
@@ -94,7 +94,32 @@ pub const DID_WBA_JSON_LD: &str = r#"{
     "controller": "rodit:serviceprovider_id",
     "serviceprovider_signature": "rodit:serviceprovider_signature",
     "userselected_dn": "rodit:userselected_dn",
-    "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" }
+    "verificationMethod": { "@id": "rodit:verificationMethod", "@type": "@id" },
+    "dn_NNSWF": "rodit:dn_nameNotSharedWithFamily",
+    "dn_NSWF": "rodit:dn_nameSharedWithFamily",
+    "dn_ContactURI": { "@id": "rodit:dn_contactUri", "@type": "@id" },
+    "dn_taxRes": "rodit:dn_taxResidence",
+    "dn_inceptDateTime": { "@id": "rodit:dn_inceptDateTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime" },
+    "dn_inceptPlace": "rodit:dn_inceptPlace",
+    "dn_taxCode": "rodit:dn_taxCode",
+    "dn_address": "rodit:dn_contactAddress",
+    "dn_Creature": "rodit:dn_creatureDescriptor",
+    "dn_AvatarURL": { "@id": "rodit:dn_avatarUrl", "@type": "@id" },
+    "dn_EmojiURL": { "@id": "rodit:dn_emojiUrl", "@type": "@id" },
+    "facial_encoding": "rodit:facial_encoding",
+    "facial_categories": { "@id": "rodit:facial_categories", "@type": "@id" },
+    "skin_tones": "rodit:skin_tones",
+    "regional_bone_structure": "rodit:regional_bone_structure",
+    "face_shape": "rodit:face_shape",
+    "age_related": "rodit:age_related",
+    "eyes": "rodit:eyes",
+    "eyebrow_style": "rodit:eyebrow_style",
+    "overall_structure": "rodit:overall_structure",
+    "nose": "rodit:nose",
+    "lips": "rodit:lips",
+    "skin_conditions": "rodit:skin_conditions",
+    "hair_color": "rodit:hair_color",
+    "checksum": "rodit:checksum"
   }
 }"#;
 
@@ -282,7 +307,7 @@ impl Contract {
             
             // Update upgrade config with new delay
             upgrade_config: upgrade::ContractUpgrade {
-                upgrade_delay: 86400, // Use the new 24-hour delay for production safety
+                upgrade_delay: upgrade::DEFAULT_UPGRADE_DELAY_SECONDS,
                 upgrade_proposed_at: old_contract.upgrade_config.upgrade_proposed_at,
                 upgrade_proposed_by: old_contract.upgrade_config.upgrade_proposed_by,
             },
@@ -307,8 +332,9 @@ impl Contract {
             env::panic_str(&error_msg);
         }
         
-        if new_contract.upgrade_config.upgrade_delay != 86400 {
-            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected 86400, got {}", 
+        if new_contract.upgrade_config.upgrade_delay != upgrade::DEFAULT_UPGRADE_DELAY_SECONDS {
+            let error_msg = format!("ERROR: Upgrade delay not updated correctly. Expected {}, got {}", 
+                upgrade::DEFAULT_UPGRADE_DELAY_SECONDS,
                 new_contract.upgrade_config.upgrade_delay);
             env::log_str(&error_msg);
             env::panic_str(&error_msg);
@@ -351,6 +377,17 @@ impl Contract {
         // If validation fails, panic with the error message
         if let Err(validation_error) = validation_result {
             require!(false, format!("Token metadata validation failed: {}", validation_error));
+        }
+        
+        let face_id_validation_result = validate_face_token_id(&token_id);
+        if let Err(validation_error) = face_id_validation_result {
+            require!(false, format!("Token ID validation failed: {}", validation_error));
+        }
+        
+        // Validate userselected_dn format if provided
+        let dn_validation_result = validate_userselected_dn(&metadata.userselected_dn);
+        if let Err(validation_error) = dn_validation_result {
+            require!(false, format!("DN validation failed: {}", validation_error));
         }
         
         // Use the provided fee_data_json directly instead of constructing it
@@ -636,7 +673,6 @@ impl Contract {
 
     /// View function returning the DID:wba JSON-LD context so that
     /// front-ends can discover the vocabulary directly from the contract.
-    // Deprecated: kept for backward compatibility – now embedded within contract metadata.
     pub fn did_wba_jsonld(&self) -> String {
         self.metadata.did_wba_jsonld.clone()
     }

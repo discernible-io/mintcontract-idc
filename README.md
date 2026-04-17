@@ -2,9 +2,9 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: RODiTCorp-near.org-20251027  
-**Example Account**: `roditcorp-com.near`  
-**Controlling Domain**: `rodit.org`
+**Contract Version**: Discernible-2026v1-identyclaw-com-20260404  
+**Example Account**: `2026v1-identyclaw-com.near`  
+**Controlling Domain**: `identityclaw.com`
 
 ---
 
@@ -14,6 +14,7 @@
 - [Quick Start](#quick-start)
 - [Contract Architecture](#contract-architecture)
 - [Token Metadata Guide](#token-metadata-guide)
+- [Distinguished Name Format](#distinguished-name-format)
 - [Security Features](#security-features)
 - [API Reference](#api-reference)
 - [Deployment Guide](#deployment-guide)
@@ -38,7 +39,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - **Token Transfer**: Transfer tokens between NEAR accounts with event logging
 - **Token Burning**: Destroy tokens with automatic storage refunds
 - **Fee Management**: Configurable initialization fees, contract fee percentages, and storage costs
-- **Rate Limiting**: Prevent spam with 10 mints per hour per account
+- **Rate Limiting**: Prevent spam with 100 mints per hour per account
 - **Signature Verification**: Ed25519 signature verification for fee authorization
 - **Time-Locked Upgrades**: 24-hour delay mechanism for secure contract upgrades
 - **Storage Management**: Automatic tracking and refunding of storage costs
@@ -83,7 +84,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd mintrscontractapi-rodit
+cd mintidclawcontractapi-rodit
 
 # Build the contract (this creates the WASM file)
 cargo near build non-reproducible-wasm --no-abi
@@ -261,11 +262,11 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near contract call-function as-read-only roditcorp-com.near get_fees \
+near contract call-function as-read-only 2026v1-identyclaw-com.near get_fees \
 network-config mainnet now
 
 # View complete configuration
-near contract call-function as-read-only roditcorp-com.near get_config \
+near contract call-function as-read-only 2026v1-identyclaw-com.near get_config \
   network-config mainnet-fastnear now
 ```
 ---
@@ -431,8 +432,8 @@ pub struct Contract {
 
 Defined in `src/lib.rs`:
 
-- `RODIT_METADATA_SPEC`: `"RODiTCorp-near.org-20251027"` - Contract version
-- `CONTRACT_NAME`: `"20251027.rodit.org"` - Issuer identifier
+- `RODIT_METADATA_SPEC`: `"Discernible-near.org-20260404"` - Contract version
+- `CONTRACT_NAME`: `"2026v1-identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
@@ -459,7 +460,7 @@ pub struct TokenMetadata {
     pub maxrq_window: String,                 // Time window for limits
     pub webhook_url: String,                  // Webhook endpoint
     pub webhook_cidr: String,                 // Webhook IP restrictions
-    pub userselected_dn: String,              // User-selected display name
+    pub userselected_dn: String,              // User-selected Distinguished Name (RFC 2253-style)
     pub allowed_cidr: String,                 // Allowed IP ranges
     pub allowed_iso3166list: String,          // Allowed countries
     pub jwt_duration: String,                 // JWT validity period
@@ -597,8 +598,8 @@ pub struct TokenMetadata {
 
 ### Contract Constants
 
-- `RODIT_METADATA_SPEC = "RODiTCorp-near.org-20251027"`
-- Issuer URL: `"20251027.rodit.org"`
+- `RODIT_METADATA_SPEC = "Discernible-near.org-20260404"`
+- Issuer URL: `"2026v1-identyclaw-com"`
 
 ---
 
@@ -615,7 +616,7 @@ All fields are strings on-chain for robust, uniform serialization:
 - **`maxrq_window`**: Integer as string representing the rate-window seconds (0 = unlimited window)
 - **`webhook_url`**: HTTPS endpoint to receive event callbacks
 - **`webhook_cidr`**: CIDR(s) allowed to deliver webhooks
-- **`userselected_dn`**: Optional user-specified display name / DN
+- **`userselected_dn`**: User-selected Distinguished Name in RFC 2253-style format (see [Distinguished Name Format](#distinguished-name-format))
 - **`allowed_cidr`**: CIDR(s) allowed for runtime usage (environment-bound)
 - **`allowed_iso3166list`**: JSON string, e.g. `{"allow":["WLD"]}` indicating country policy
 - **`jwt_duration`**: Integer as string; JWT validity seconds (0 = unlimited)
@@ -623,6 +624,87 @@ All fields are strings on-chain for robust, uniform serialization:
 - **`subjectuniqueidentifier_url`**: URL pointing to a stable identity/subject descriptor for the token's subject
 - **`serviceprovider_id`**: An internal identifier string for the issuing service
 - **`serviceprovider_signature`**: Issuer's signature over fee/issuance data
+
+### Distinguished Name Format
+
+The `userselected_dn` field uses an RFC 2253-style format with custom attributes. This allows users to encode identity and contact information in a structured, validated format.
+
+#### Format
+
+```
+NNSWF=NameNotSharedWithFamily,NSWF=NameSharedWithFamily,ContactURI=scheme:authority:identifier,taxRes=XX,...
+```
+
+#### Supported Attributes
+
+| Attribute | Required | Description | Format | Example |
+|-----------|----------|-------------|--------|---------|
+| **NNSWF** | **Yes** | Name Not Shared With Family (given name) | UTF-8, 1-50 chars | `John` |
+| NSWF | No | Name Shared With Family (surname) | UTF-8, max 50 chars | `Smith` |
+| ContactURI | No | Generic identifier | `scheme:authority:identifier` | `twitter:x.com:user` |
+| taxRes | No | Tax residence country | ISO 3166-1 alpha-2 | `US`, `GB`, `DE` |
+| inceptDateTime | No | Incept date/time | GeneralizedTime (YYYYMMDDHHMMSSZ) | `19900315120000Z` |
+| inceptPlace | No | Incept place | Plus Code | `9F4MGCH7+R6` |
+| taxCode | No | Tax code/ID | Alphanumeric, max 30 chars | `123-45-6789` |
+| address | No | Contact address | Plus Code | `87G8Q23F+XF` |
+| Creature | No | Descriptive label | Printable UTF-8, max 50 chars | `Friendly Being` |
+| AvatarURL | No | Avatar media URL | HTTPS URL | `https://example.com/avatar.png` |
+| EmojiURL | No | Emoji asset URL | HTTPS URL | `https://example.com/emoji.svg` |
+
+#### ContactURI Attribute Format
+
+The `ContactURI` attribute uses a flexible `scheme:authority:identifier` format to represent identifiers across different systems:
+
+| Type | Example |
+|------|---------|
+| Twitter/X | `twitter:x.com:username` |
+| Email | `email:gmail.com:user` |
+| Telegram | `telegram:telegram.com:username` |
+| Phone | `phone:ES:34683493049` |
+| LinkedIn | `linkedin:linkedin.com:userid` |
+| GitHub | `github:github.com:username` |
+
+#### Plus Code Format
+
+Plus Codes (Open Location Codes) are used for `inceptPlace` and `address` attributes:
+- Format: `8FVC9G8F+6W` (area code + local code)
+- Reference: https://plus.codes/
+
+#### GeneralizedTime Format
+
+The `inceptDateTime` uses X.509 GeneralizedTime format:
+- Format: `YYYYMMDDHHMMSSZ`
+- Example: `19900315120000Z` (March 15, 1990 at 12:00:00 UTC)
+
+#### Escaping Special Characters
+
+RFC 2253 special characters must be escaped with backslash:
+- Characters: `, + " \ < > ; = #`
+- Example: `NSWF=Smith\, Jr.` for surname "Smith, Jr."
+
+#### Examples
+
+**Minimal (required field only):**
+```
+NNSWF=Alice
+```
+
+**With contact information:**
+```
+NNSWF=John,NSWF=Smith,ContactURI=email:gmail.com:jsmith,taxRes=US
+```
+
+**Full format:**
+```
+NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=19900315120000Z,inceptPlace=9F4MGCH7+R6,taxCode=123-45-6789,address=87G8Q23F+XF,Creature=Friendly Being,AvatarURL=https://example.com/avatar.png,EmojiURL=https://example.com/emoji.svg
+```
+
+#### Validation Rules
+
+- Maximum total DN length: 1024 bytes
+- Only `NNSWF` is required; all other attributes are optional
+- Unknown attributes are allowed for extensibility
+- Empty DN string is valid (no identity information provided)
 
 ### Token Profiles
 
@@ -635,7 +717,7 @@ All fields are strings on-chain for robust, uniform serialization:
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=roditcorp-com.near;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=2026v1-identyclaw-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -663,18 +745,18 @@ All fields are strings on-chain for robust, uniform serialization:
 {
   "openapijson_url": "https://root.internal.example/api-docs",
   "not_after": "1970-01-01",
-  "not_before": "2025-08-29",
+  "not_before": "2026-08-29",
   "max_requests": "0",
   "maxrq_window": "0",
   "webhook_url": "https://not-set.example.com/webhook",
   "webhook_cidr": "0.0.0.0/0",
-  "userselected_dn": "",
+  "userselected_dn": "NNSWF=RootAdmin",
   "allowed_cidr": "0.0.0.0/0",
   "allowed_iso3166list": "{\"allow\":[\"WLD\"]}",
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=2026v1-identyclaw-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -684,18 +766,18 @@ All fields are strings on-chain for robust, uniform serialization:
 {
   "openapijson_url": "https://api.public.example/api-docs",
   "not_after": "1970-01-01",
-  "not_before": "2025-08-29",
+  "not_before": "2026-08-29",
   "max_requests": "100000",
   "maxrq_window": "86400",
   "webhook_url": "https://not-set.example.com/webhook",
   "webhook_cidr": "203.0.113.0/24",
-  "userselected_dn": "example-client",
+  "userselected_dn": "NNSWF=ClientApp,ContactURI=email:example.com:client,taxRes=US,Creature=Friendly Bot",
   "allowed_cidr": "203.0.113.0/24",
   "allowed_iso3166list": "{\"allow\":[\"WLD\"]}",
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=roditcorp-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=2026v1-identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -1061,7 +1143,7 @@ All events use this envelope:
 ```json
 {
   "standard": "PENDING nepXXX",
-  "version": "RODiTCorp-near.org-20251027",
+  "version": "Discernible-near.org-20260404",
   "event": "<event_name>",
   "data": [ { /* event-specific object */ } ]
 }
@@ -1104,20 +1186,20 @@ All events use this envelope:
 
 2. **Deploy code to testnet**:
    ```bash
-   near deploy --accountId roditcorp-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
+   near deploy --accountId 2026v1-identyclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
    ```
 
 3. **Initialize the contract**:
    ```bash
-   near call roditcorp-com.near init '{"owner_id":"roditcorp-com.near","metadata":null}' --accountId roditcorp-com.near
+   near call 2026v1-identyclaw-com.near init '{"owner_id":"2026v1-identyclaw-com.near","metadata":null}' --accountId 2026v1-identyclaw-com.near
    ```
 
 ### Notes
 
-When CONTRACT_NAME=roditcorp-com.near
+When CONTRACT_NAME=2026v1-identyclaw-com.near
 Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "20251027.rodit.org";
-Where rodit.org is the controlling domain for the contract.
+pub const CONTRACT_NAME: &str = "identityclaw.com";
+Where identityclaw.com is the controlling domain for the contract.
 
 ### Deployment Checklist
 
@@ -1135,10 +1217,9 @@ Where rodit.org is the controlling domain for the contract.
 
 If upgrading from an older contract version:
 
-1. **Automatic Migration**: The `upgrade()` function handles state migration
+1. **State Migration**: The `upgrade()` function handles state migration
 2. **New Fields**: All new fields are initialized with safe defaults
-3. **Backward Compatible**: Existing functions work as before
-4. **New Features**: Available immediately after upgrade
+3. **New Features**: Available immediately after upgrade
 
 **Post-Upgrade Checklist**:
 - [ ] Verify fees are set correctly: `get_fees`
@@ -1167,7 +1248,7 @@ If upgrading from an older contract version:
 ## Licensing & Compliance
 
 - All rights reserved.
-- For trials/evaluation, contact: **rodit@rodit.org**
+- For trials/evaluation, contact: **rodit@identityclaw.com**
 
 ---
 
@@ -1190,7 +1271,250 @@ If upgrading from an older contract version:
 4. **Fees**: Start with default fees and adjust based on usage patterns
 5. **Upgrades**: Communicate upgrade proposals to users in advance
 6. **Configuration**: Use `get_config()` to verify correct contract configuration
+ 
+---
+
+## Facial `token_id` Encoding and Mapping
+
+This contract uses a compact facial `token_id` encoding for each minted token. The `token_id` is:
+
+- 12 characters using position-specific safe character sets (no vowels or ambiguous letters)
+- Positions **0–10**: indices for 11 facial categories (in fixed order)
+- Position **11**: checksum letter
+
+### Character Sets
+
+Alternating character sets (no vowels or ambiguous letters):
+- **CHARSET_EVEN**: `b, c, a, e, u, g` (6 chars) — positions 0, 2, 4, 6, 8, 10
+- **CHARSET_ODD**: `d, f, h, j, k, m, n, p, q, r, t, v, w, x, y` (15 chars) — positions 1, 3, 5, 7, 9, 11 (checksum)
+
+### Encoding rules
+
+- For each category position `i` in `0..=10`:
+  - Use the position-specific character set (EVEN or ODD) to encode the index
+  - Index must be `<` the number of values in that category (see tables below)
+- Position **11** (checksum):
+  - Compute `sum_indices = Σ idx_i` for `i = 0..10`
+  - Compute `checksum_index = sum_indices % 15` (CHARSET_ODD length)
+  - Checksum letter is `CHARSET_ODD[checksum_index]`
+
+### Category order (positions 0–10)
+
+Categories are ordered by value count to optimize charset usage:
+
+0. `overall_structure`  
+1. `face_shape`  
+2. `age_related`  
+3. `regional_bone_structure`  
+4. `lips`  
+5. `hair_color`  
+6. `eyebrow_style`  
+7. `eyes`  
+8. `skin_conditions`  
+9. `skin_tones`  
+10. `nose`  
+
+### `overall_structure` (position 0, 2 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value      |
+|-------|--------|------------|
+| 0     | b      | masculine  |
+| 1     | c      | feminine   |
+
+### `face_shape` (position 1, 15 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value                 |
+|-------|--------|-----------------------|
+| 0     | d      | oval-faced            |
+| 1     | f      | round-faced           |
+| 2     | h      | square-faced          |
+| 3     | j      | rectangular-faced     |
+| 4     | k      | heart-shaped-face     |
+| 5     | m      | diamond-shaped-face   |
+| 6     | n      | triangular-faced      |
+| 7     | p      | pear-shaped-face      |
+| 8     | q      | narrow-faced          |
+| 9     | r      | wide-faced            |
+| 10    | t      | angular-faced         |
+| 11    | v      | curved-faced          |
+| 12    | w      | asymmetrical-faced    |
+| 13    | x      | elongated-faced       |
+| 14    | y      | compact-faced         |
+
+### `age_related` (position 2, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | b      | teenage-person   |
+| 1     | c      | young-adult-25   |
+| 2     | a      | middle-aged-50   |
+| 3     | e      | senior-65        |
+| 4     | u      | elderly-person   |
+
+### `regional_bone_structure` (position 3, 12 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | d      | Nordic           |
+| 1     | f      | Mediterranean    |
+| 2     | h      | Slavic           |
+| 3     | j      | East-Asian       |
+| 4     | k      | Southeast-Asian  |
+| 5     | m      | South-Asian      |
+| 6     | n      | West-African     |
+| 7     | p      | East-African     |
+| 8     | q      | Native-American  |
+| 9     | r      | Polynesian       |
+| 10    | t      | Celtic-features  |
+| 11    | v      | Turkish          |
+
+### `lips` (position 4, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value           |
+|-------|--------|-----------------|
+| 0     | b      | thin-lips       |
+| 1     | c      | full-lips       |
+| 2     | a      | pouty-lips      |
+| 3     | e      | defined-lips    |
+| 4     | u      | bow-shaped-lips |
+
+### `hair_color` (position 5, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value                 |
+|-------|--------|-----------------------|
+| 0     | d      | black-hair            |
+| 1     | f      | dark-brown-hair       |
+| 2     | h      | brown-hair            |
+| 3     | j      | light-brown-hair      |
+| 4     | k      | blonde-hair           |
+| 5     | m      | platinum-blonde-hair  |
+| 6     | n      | red-hair              |
+| 7     | p      | auburn-hair           |
+| 8     | q      | gray-hair             |
+| 9     | r      | white-hair            |
+| 10    | t      | silver-hair           |
+
+### `eyebrow_style` (position 6, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value             |
+|-------|--------|-------------------|
+| 0     | b      | thick-eyebrows    |
+| 1     | c      | thin-eyebrows     |
+| 2     | a      | arched-eyebrows   |
+| 3     | e      | straight-eyebrows |
+| 4     | u      | bushy-eyebrows    |
+| 5     | g      | sparse-eyebrows   |
+
+### `eyes` (position 7, 10 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | d      | small-eyes          |
+| 1     | f      | large-eyes          |
+| 2     | h      | deep-set-eyes       |
+| 3     | j      | prominent-eyes      |
+| 4     | k      | close-set-eyes      |
+| 5     | m      | wide-set-eyes       |
+| 6     | n      | almond-shaped-eyes  |
+| 7     | p      | upturned-eyes       |
+| 8     | q      | downturned-eyes     |
+| 9     | r      | monolid-eyes        |
+
+### `skin_conditions` (position 8, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value    |
+|-------|--------|----------|
+| 0     | b      | freckled |
+| 1     | c      | spotted  |
+| 2     | a      | scarred  |
+| 3     | e      | lined    |
+| 4     | u      | wrinkled |
+| 5     | g      | clear    |
+
+### `skin_tones` (position 9, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+
+| Index | Letter | Value               |
+|-------|--------|---------------------|
+| 0     | d      | pale-skinned        |
+| 1     | f      | fair-skinned        |
+| 2     | h      | medium-skinned      |
+| 3     | j      | tan-skinned         |
+| 4     | k      | olive-skinned       |
+| 5     | m      | dark-skinned        |
+| 6     | n      | ebony-skinned       |
+| 7     | p      | ivory-skinned       |
+| 8     | q      | peach-toned-skin    |
+| 9     | r      | rosy-skinned        |
+| 10    | t      | red-toned-skin      |
+
+### `nose` (position 10, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+
+| Index | Letter | Value          |
+|-------|--------|----------------|
+| 0     | b      | aquiline-nose  |
+| 1     | c      | button-nose    |
+| 2     | a      | Roman-nose     |
+| 3     | e      | snub-nose      |
+| 4     | u      | flared-nose    |
+| 5     | g      | pinched-nose   |
 
 ---
 
-**Last Updated**: 2025-10-02
+## Security Best Practices
+
+### For Contract Operators
+
+#### 1. **Credential Security**
+- **Never commit private keys** to version control
+- Store credentials in `~/.near-credentials/` with 600 permissions
+- Run `./secure_credentials.sh` after creating/updating credentials
+- Ensure `account.env` is in `.gitignore`
+
+#### 2. **Deployment Security**
+- Review `DEPLOYMENT_CHECKLIST.md` before each deployment
+- Test all changes on testnet first
+- Use `./monitor_contract.sh` to verify deployment
+- Document all configuration changes
+
+#### 3. **Operational Security**
+- Monitor contract status regularly: `./monitor_contract.sh`
+- Review authorized signers periodically
+- Keep deployment scripts updated
+- Have emergency response plan ready
+
+#### 4. **Emergency Procedures**
+- Pause contract if issues detected: `./emergency_pause.sh [account] [network] pause`
+- Remove compromised signers immediately
+- Document all security incidents
+- Notify users of security-related changes
+
+### Security Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `secure_credentials.sh` | Set proper permissions on credential files | `./secure_credentials.sh` |
+| `monitor_contract.sh` | Check contract status and configuration | `./monitor_contract.sh [account] [network]` |
+| `emergency_pause.sh` | Emergency pause/resume contract | `./emergency_pause.sh [account] [network] [action]` |
+
+### Security Documentation
+
+- **`SECURITY.md`**: Complete security policy and vulnerability reporting
+- **`DEPLOYMENT_CHECKLIST.md`**: Pre-deployment security checklist
+- **`AUTHORIZED_SIGNERS.md`**: Current authorized signers and management
+
+### Key Security Features
+
+1. **Access Control**: Owner-only admin functions with 1 yoctoNEAR protection
+2. **Rate Limiting**: 100 mints per hour per account
+3. **Signature Verification**: Ed25519 signatures bound to parameters
+4. **Time-Locked Upgrades**: 24-hour delay for mainnet upgrades
+5. **Arithmetic Safety**: All operations use checked math
+6. **Reentrancy Protection**: Checks-effects-interactions pattern
+
+### Reporting Security Issues
+
+**DO NOT** open public issues for security vulnerabilities. See `SECURITY.md` for responsible disclosure process.
+
+---
+
+**Last Updated**: 2026-10-02

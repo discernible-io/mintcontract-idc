@@ -160,16 +160,26 @@ pub fn validate_cidr(cidr: &str) -> bool {
 }
 
 /// Helper function to validate escaped JSON strings
+/// Handles JSON strings that may contain escaped quotes
 pub fn validate_escaped_json(json_str: &str) -> bool {
     if json_str.is_empty() {
         return false;
     }
     
-    // Handle escaped JSON by unescaping it first
-    if let Ok(unescaped) = serde_json::from_str::<String>(format!("\"{}\"", json_str.replace("\"", "\\\"")).as_str()) {
-        if let Ok(_) = serde_json::from_str::<serde_json::Value>(&unescaped) {
-            return true; // Valid JSON after unescaping
-        }
+    // Try to parse the JSON string directly first
+    if serde_json::from_str::<serde_json::Value>(json_str).is_ok() {
+        return true;
+    }
+    
+    // If direct parsing fails, try to unescape the string
+    // The JSON string might have escaped quotes like: {\"key\":\"value\"}
+    let unescaped = json_str
+        .replace("\\\"", "\"")
+        .replace("\\\\", "\\");
+    
+    // Try parsing the unescaped version
+    if serde_json::from_str::<serde_json::Value>(&unescaped).is_ok() {
+        return true;
     }
     
     false

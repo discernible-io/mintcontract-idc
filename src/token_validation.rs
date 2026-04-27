@@ -458,7 +458,7 @@ const FACE_CATEGORIES: &[FacialCategory] = &[
     },
 ];
 
-const CHARSET_EVEN: &[u8] = b"bcaeug"; // 6 chars - for even positions
+const CHARSET_EVEN: &[u8] = b"bclszg"; // 6 chars - for even positions
 const CHARSET_ODD: &[u8] = b"dfhjkmnpqrtvwxy"; // 15 chars - for odd positions
 
 // Position-specific charsets mapping
@@ -521,7 +521,8 @@ pub struct DecodedFacialToken {
 /// Decodes a facial token ID and returns detailed category information
 pub fn decode_facial_token_id(token_id: &str) -> DecodedFacialToken {
     // Initial validation: check if tokenId contains only allowed characters
-    let valid_chars_regex = regex::Regex::new(r"^[abcdefghjkmnpqrtuvwxy]+$").unwrap();
+    // CHARSET_EVEN: bclszg, CHARSET_ODD: dfhjkmnpqrtvwxy
+    let valid_chars_regex = regex::Regex::new(r"^[bcdfghjklmnpqrstvwxyz]+$").unwrap();
 
     if token_id.len() != 12 || !valid_chars_regex.is_match(token_id) {
         return DecodedFacialToken {
@@ -1164,33 +1165,33 @@ mod face_token_tests {
     #[test]
     fn test_decode_facial_token_basic() {
         // Test decoding with position-specific charsets
-        // Position 0 (even): b, c, a, e, u, g
+        // Position 0 (even): b, c, l, s, z, g
         // Position 1 (odd): d, f, h, j, k, m, n, p, q, r, t, v, w, x, y
-        // Position 2 (even): b, c, a, e, u, g
+        // Position 2 (even): b, c, l, s, z, g
         // etc.
-        let decoded = decode_facial_token_id("bcaegudfjhkm");
-        assert_eq!(decoded.token_id, "bcaegudfjhkm");
+        let decoded = decode_facial_token_id("bclszgdfhjkm");
+        assert_eq!(decoded.token_id, "bclszgdfhjkm");
         // Checksum validation depends on the actual indices
     }
 
     #[test]
     fn test_decode_invalid_token_length() {
-        let decoded = decode_facial_token_id("bcaegudfjhk"); // 11 chars
+        let decoded = decode_facial_token_id("bclszgdfhjk"); // 11 chars
         assert!(!decoded.valid);
     }
 
     #[test]
     fn test_decode_invalid_character() {
-        let decoded = decode_facial_token_id("bcaegudfjhki"); // 'i' not in charset
+        let decoded = decode_facial_token_id("bclszgdfjhki"); // 'i' not in charset
         assert!(!decoded.valid);
     }
 
     #[test]
     fn test_position_specific_charset_validation() {
-        // Position 0 must use CHARSET_EVEN (bcaeug)
+        // Position 0 must use CHARSET_EVEN (bclszg)
         // Position 1 must use CHARSET_ODD (dfhjkmnpqrtvwxy)
         // Invalid: 'd' at position 0 (should be from CHARSET_EVEN)
-        let invalid_token = "dcaegudfjhkm";
+        let invalid_token = "dclszgdfhjkm";
         assert!(validate_face_token_id(invalid_token).is_err());
     }
 

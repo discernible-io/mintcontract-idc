@@ -48,7 +48,7 @@ use token_validation::{validate_token_metadata, validate_face_token_id, validate
 use storage::handle_account_fees_and_storage;
 use upgrade::ContractUpgrade;
 
-pub const RODIT_METADATA_SPEC: &str = "Discernible-2026v1-identyclaw-com-20260417";
+pub const RODIT_METADATA_SPEC: &str = "Discernible-2026v2-identyclaw-com-20260427";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const CONTRACT_NAME: &str = "2026v1-identyclaw-com";
 

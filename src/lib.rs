@@ -1349,9 +1349,6 @@ pub fn resume_contract(&mut self) {
             env::log_str("VERIFICATION: Using full SHA-512 hash for verification");
         }
         
-        // The hash_hex and hash_result variables are already available from above
-        // No need to create a separate hash_for_verification variable
-        
         // Now try verification with the original message
         
         // Check against all authorized signers

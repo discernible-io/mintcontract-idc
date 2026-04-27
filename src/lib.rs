@@ -392,8 +392,6 @@ impl Contract {
         
         // Use the provided fee_data_json directly instead of constructing it
         // This ensures the exact same JSON string is used for verification as was used in the frontend
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Using provided fee_data_json: {}", fee_data_json));
         
         // Parse the JSON to extract and verify all fields
         let fee_data: serde_json::Value = serde_json::from_str(&fee_data_json)
@@ -404,8 +402,6 @@ impl Contract {
         let fee_token_id = fee_data.get("token_id")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| panic!("token_id not found or not a string in fee data"));
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Extracted token_id from fee_data: {}", fee_token_id));
         require!(
             fee_token_id == token_id,
             format!("Token ID mismatch: signature is for '{}' but minting '{}'", fee_token_id, token_id)
@@ -415,8 +411,6 @@ impl Contract {
         let fee_minting_account = fee_data.get("mintingfeeaccount")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| panic!("mintingfeeaccount not found or not a string in fee data"));
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Extracted mintingfeeaccount from fee_data: {}", fee_minting_account));
         require!(
             fee_minting_account == mintingfee_account.as_str(),
             format!("Minting fee account mismatch: signature is for '{}' but using '{}'", fee_minting_account, mintingfee_account)
@@ -424,8 +418,6 @@ impl Contract {
         
         // Verify owner account matches (if present in fee_data)
         if let Some(fee_owner) = fee_data.get("owneraccount_id").and_then(|v| v.as_str()) {
-            #[cfg(debug_assertions)]
-            env::log_str(&format!("VERIFICATION: Extracted owneraccount_id from fee_data: {}", fee_owner));
             require!(
                 fee_owner == owneraccount_id.as_str(),
                 format!("Owner account mismatch: signature is for '{}' but using '{}'", fee_owner, owneraccount_id)
@@ -436,8 +428,6 @@ impl Contract {
         let mintingfee_str = fee_data.get("mintingfee")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| panic!("mintingfee not found or not a string in fee data"));
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Extracted mintingfee from fee_data: {}", mintingfee_str));
         
         // Remove any " NEAR" suffix if present
         let clean_fee = mintingfee_str.trim_end_matches(" NEAR");
@@ -450,8 +440,6 @@ impl Contract {
         let attached_deposit = env::attached_deposit();
         // Convert attached_deposit to u128 for comparison
         let deposit_yocto = attached_deposit.as_yoctonear();
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Deposit: {}, Fee in JSON: {}", deposit_yocto, mintingfee_yocto));
         
         require!(
             deposit_yocto == mintingfee_yocto,
@@ -460,24 +448,6 @@ impl Contract {
         
         // Convert the JSON string to bytes for verification
         let message = fee_data_json.as_bytes().to_vec();
-        #[cfg(debug_assertions)]
-        {
-            env::log_str(&format!("VERIFICATION: Message length in bytes: {}", message.len()));
-            let message_hex: String = message.iter()
-                .take(32)
-                .map(|b| format!("{:02x}", b))
-                .collect::<Vec<_>>()
-                .join("");
-            env::log_str(&format!("VERIFICATION: First 32 bytes of message (hex): {}", message_hex));
-            if message.len() > 32 {
-                let message_hex_end: String = message.iter()
-                    .skip(message.len().saturating_sub(32))
-                    .map(|b| format!("{:02x}", b))
-                    .collect::<Vec<_>>()
-                    .join("");
-                env::log_str(&format!("VERIFICATION: Last 32 bytes of message (hex): {}", message_hex_end));
-            }
-        }
 
         // Verify the fee signature and handle any errors
         if let Ok(Err(err)) = self.verify_fee_signature(message, fee_signature_base64url) {
@@ -534,9 +504,6 @@ impl Contract {
 
     // Helper function to convert deposit string (as decimal NEAR) to yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
     fn convert_depositstring_to_yoctonear(deposit_str: &str) -> Result<u128, String> {
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Converting deposit string to yoctoNEAR: {}", deposit_str));
-        
         // Split the string by decimal point
         let parts: Vec<&str> = deposit_str.split('.').collect();
         
@@ -545,20 +512,13 @@ impl Contract {
         }
         
         let whole_part = parts[0].parse::<u128>().map_err(|e| format!("Failed to parse whole part: {}", e))?;
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Whole part: {}", whole_part));
         
         // Calculate yoctoNEAR for the whole part (1 NEAR = 10^24 yoctoNEAR)
         let mut yocto_amount = whole_part * 10u128.pow(24);
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Yocto from whole part: {}", yocto_amount));
         
         // If there's a fractional part, convert it to yoctoNEAR
         if parts.len() == 2 {
             let fractional_part = parts[1];
-            #[cfg(debug_assertions)]
-            env::log_str(&format!("VERIFICATION: Fractional part string: {}", fractional_part));
-            
             let mut fractional_yocto = 0u128;
             
             // Handle the fractional part (up to 24 decimal places for yoctoNEAR)
@@ -566,21 +526,15 @@ impl Contract {
                 // Ensure the fractional part is not too long
                 let decimal_places = fractional_part.len().min(24);
                 let fractional_str = format!("{:0<24}", fractional_part.chars().take(decimal_places).collect::<String>());
-                #[cfg(debug_assertions)]
-                env::log_str(&format!("VERIFICATION: Padded fractional string (24 chars): {}", fractional_str));
                 
                 // Parse the padded fractional part
                 fractional_yocto = fractional_str.parse::<u128>()
                     .map_err(|e| format!("Failed to parse fractional part: {}", e))?;
-                #[cfg(debug_assertions)]
-                env::log_str(&format!("VERIFICATION: Yocto from fractional part: {}", fractional_yocto));
             }
             
             yocto_amount += fractional_yocto;
         }
         
-        #[cfg(debug_assertions)]
-        env::log_str(&format!("VERIFICATION: Final yoctoNEAR amount: {}", yocto_amount));
         Ok(yocto_amount)
     }
 

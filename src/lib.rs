@@ -356,12 +356,6 @@ impl Contract {
     ) {
         self.assert_contract_active();
         
-        // Enforce that mintingfee_account must be identyclaw.near
-        require!(
-            mintingfee_account.as_str() == "identyclaw.near",
-            format!("Minting fee account must be identyclaw.near, got {}", mintingfee_account.as_str())
-        );
-        
         // Check rate limiting
         self.check_and_update_rate_limit(&owneraccount_id);
         

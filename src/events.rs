@@ -85,3 +85,21 @@ pub fn emit_contract_status_change(status: &str) {
         "status": status,
     }));
 }
+
+pub fn emit_capacity(total_supply: u64, capacity: u64) {
+    let percentage = if capacity > 0 {
+        (total_supply as f64 / capacity as f64 * 100.0 * 100.0).round() / 100.0
+    } else {
+        0.0
+    };
+    
+    // Only log when contract is above 50% capacity
+    if percentage > 50.0 {
+        log_event("rodit_capacity", json!({
+            "total_supply": total_supply,
+            "capacity": capacity,
+            "percentage_used": percentage,
+            "remaining": capacity.saturating_sub(total_supply),
+        }));
+    }
+}

@@ -68,6 +68,7 @@ pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.00
 // Rate limiting constants
 pub const RATE_LIMIT_WINDOW: u64 = 7200; // 2 hours in seconds
 pub const MAX_MINTS_PER_WINDOW: u64 = 200; // Maximum 200 mints per 2 hours per account
+pub const CONTRACT_CAPACITY: u64 = 50400; // Maximum recommended token supply
 
 /// DID:wba JSON-LD context describing the RODiT token vocabulary.
 /// This is provided as a constant string so it can be returned via a view
@@ -501,6 +502,9 @@ impl Contract {
         
         // Emit standardized event
         events::emit_mint_event(&owneraccount_id, &token_id);
+        
+        // Emit capacity tracking event
+        events::emit_capacity(self.stats.total_supply, CONTRACT_CAPACITY);
     }
 
     // The handle_account_fees_and_storage function has been moved to the storage module

@@ -651,6 +651,9 @@ lazy_static! {
     /// Validates GeneralizedTime format: YYYYMMDDHHMMSSZ
     static ref GENERALIZED_TIME_REGEX: Regex = Regex::new(r"^\d{14}Z$").unwrap();
     
+    /// Validates frontend incept date input: YYYY-MM-DD or -YYYY...-MM-DD
+    static ref INCEPT_DATE_TEXT_REGEX: Regex = Regex::new(r"^(?:\d{4}|-\d{4,})-\d{2}-\d{2}$").unwrap();
+    
     /// Validates Plus Code format (e.g., 9F4MGCH7+R6 or 87G8Q23F+XF)
     static ref PLUS_CODE_REGEX: Regex = Regex::new(r"^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,}$").unwrap();
     
@@ -776,36 +779,35 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
             }
         }
         "inceptDateTime" => {
-            // GeneralizedTime: YYYYMMDDHHMMSSZ
-            if !value.is_empty() && !GENERALIZED_TIME_REGEX.is_match(value) {
-                return Err("inceptDateTime must be GeneralizedTime format (YYYYMMDDHHMMSSZ)".to_string());
-            }
-            // Additional validation: check date components
+            // Accept either:
+            // - GeneralizedTime payload used for CE dates: YYYYMMDDHHMMSSZ
+            // - Frontend date text (including BCE): YYYY-MM-DD or -YYYY...-MM-DD
             if !value.is_empty() {
-                let year: u32 = value[0..4].parse().unwrap_or(0);
-                let month: u32 = value[4..6].parse().unwrap_or(0);
-                let day: u32 = value[6..8].parse().unwrap_or(0);
-                let hour: u32 = value[8..10].parse().unwrap_or(99);
-                let minute: u32 = value[10..12].parse().unwrap_or(99);
-                let second: u32 = value[12..14].parse().unwrap_or(99);
-                
-                if year < 1900 || year > 2100 {
-                    return Err("inceptDateTime year must be 1900-2100".to_string());
-                }
-                if month < 1 || month > 12 {
-                    return Err("inceptDateTime month must be 01-12".to_string());
-                }
-                if day < 1 || day > 31 {
-                    return Err("inceptDateTime day must be 01-31".to_string());
-                }
-                if hour > 23 {
-                    return Err("inceptDateTime hour must be 00-23".to_string());
-                }
-                if minute > 59 {
-                    return Err("inceptDateTime minute must be 00-59".to_string());
-                }
-                if second > 59 {
-                    return Err("inceptDateTime second must be 00-59".to_string());
+                if GENERALIZED_TIME_REGEX.is_match(value) {
+                    // Additional validation for GeneralizedTime components
+                    let month: u32 = value[4..6].parse().unwrap_or(0);
+                    let day: u32 = value[6..8].parse().unwrap_or(0);
+                    let hour: u32 = value[8..10].parse().unwrap_or(99);
+                    let minute: u32 = value[10..12].parse().unwrap_or(99);
+                    let second: u32 = value[12..14].parse().unwrap_or(99);
+                    
+                    if month < 1 || month > 12 {
+                        return Err("inceptDateTime month must be 01-12".to_string());
+                    }
+                    if day < 1 || day > 31 {
+                        return Err("inceptDateTime day must be 01-31".to_string());
+                    }
+                    if hour > 23 {
+                        return Err("inceptDateTime hour must be 00-23".to_string());
+                    }
+                    if minute > 59 {
+                        return Err("inceptDateTime minute must be 00-59".to_string());
+                    }
+                    if second > 59 {
+                        return Err("inceptDateTime second must be 00-59".to_string());
+                    }
+                } else if !INCEPT_DATE_TEXT_REGEX.is_match(value) {
+                    return Err("inceptDateTime must be GeneralizedTime (YYYYMMDDHHMMSSZ) or date text (YYYY-MM-DD or -YYYY...-MM-DD)".to_string());
                 }
             }
         }
@@ -869,7 +871,7 @@ pub fn validate_dn_attribute(name: &str, value: &str) -> Result<(), String> {
 /// - **ContactURI**: Generic identifier (scheme:authority:identifier)
 ///   - Examples: `twitter:x.com:emusk`, `email:example.com:identyclaw@example.com`, `phone:ES:34683493049`
 /// - **taxRes**: Tax residence (ISO 3166-1 alpha-2)
-/// - **inceptDateTime**: Incept date/time (GeneralizedTime YYYYMMDDHHMMSSZ)
+/// - **inceptDateTime**: DN incept date value (`YYYYMMDDHHMMSSZ`, `YYYY-MM-DD`, or `-YYYY...-MM-DD`)
 /// - **inceptPlace**: Incept place (Plus Code)
 /// - **taxCode**: Tax code/ID (country-specific, max 30 chars)
 /// - **address**: Contact address (Plus Code)
@@ -951,9 +953,17 @@ mod dn_tests {
 
     #[test]
     fn test_invalid_incept_datetime() {
-        // Must be GeneralizedTime: YYYYMMDDHHMMSSZ
-        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=2000-01-01").is_err());
+        // Invalid frontend/BCE formats should be rejected
+        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=-044-03-15").is_err()); // BCE year must be at least 4 digits
+        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=2026-1-01").is_err()); // month must be 2 digits
         assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=20001315120000Z").is_err()); // month 13
+    }
+    
+    #[test]
+    fn test_valid_incept_datetime_frontend_formats() {
+        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=2026-01-01").is_ok());
+        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=-0044-03-15").is_ok());
+        assert!(validate_userselected_dn("NNSWF=Name,inceptDateTime=20260101120000Z").is_ok());
     }
 
     #[test]

@@ -643,7 +643,7 @@ NNSWF=NameNotSharedWithFamily,NSWF=NameSharedWithFamily,ContactURI=scheme:author
 | NSWF | No | Name Shared With Family (surname) | UTF-8, max 50 chars | `Smith` |
 | ContactURI | No | Generic identifier | `scheme:authority:identifier` | `twitter:x.com:user` |
 | taxRes | No | Tax residence country | ISO 3166-1 alpha-2 | `US`, `GB`, `DE` |
-| inceptDateTime | No | Incept date/time | GeneralizedTime (YYYYMMDDHHMMSSZ) | `19900315120000Z` |
+| inceptDateTime | No | Incept date/time | `YYYYMMDDHHMMSSZ` or `YYYY-MM-DD` or `-YYYY...-MM-DD` | `19900315120000Z`, `2026-01-01`, `-0044-03-15` |
 | inceptPlace | No | Incept place | Plus Code | `9F4MGCH7+R6` |
 | taxCode | No | Tax code/ID | Alphanumeric, max 30 chars | `123-45-6789` |
 | address | No | Contact address | Plus Code | `87G8Q23F+XF` |
@@ -670,11 +670,12 @@ Plus Codes (Open Location Codes) are used for `inceptPlace` and `address` attrib
 - Format: `8FVC9G8F+6W` (area code + local code)
 - Reference: https://plus.codes/
 
-#### GeneralizedTime Format
+#### Incept Date Formats
 
-The `inceptDateTime` uses X.509 GeneralizedTime format:
-- Format: `YYYYMMDDHHMMSSZ`
-- Example: `19900315120000Z` (March 15, 1990 at 12:00:00 UTC)
+The `inceptDateTime` accepts either:
+- X.509 GeneralizedTime: `YYYYMMDDHHMMSSZ` (example: `19900315120000Z`)
+- Date text: `YYYY-MM-DD` (example: `2026-01-01`)
+- BCE date text: `-YYYY...-MM-DD` (example: `-0044-03-15`)
 
 #### Escaping Special Characters
 

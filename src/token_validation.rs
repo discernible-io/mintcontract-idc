@@ -22,6 +22,21 @@ lazy_static! {
     static ref DOMAIN_REGEX: Regex = Regex::new(r"([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}").unwrap();
 }
 
+fn days_in_month(year: u32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 0,
+    }
+}
+
 /// Validates a date string format (YYYY-MM-DD)
 /// Checks for presence of valid date but not exclusively
 /// 
@@ -57,8 +72,7 @@ pub fn validate_date_format(date_str: &str) -> bool {
             parts[1].parse::<u32>(),
             parts[2].parse::<u32>()
         ) {
-            // Basic range validation
-            return year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+            return year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= days_in_month(year, month);
         }
     }
     
@@ -274,6 +288,9 @@ pub fn validate_token_metadata(
     allowed_iso3166list: &str,
     jwt_duration: &str,
     permissioned_routes: &str,
+    subjectuniqueidentifier_url: &str,
+    serviceprovider_id: &str,
+    serviceprovider_signature: &str,
 ) -> Result<(), String> {
     // URL validations - similar to validateAndSetUrl in utils.js
     if !validate_url(openapijson_url) {
@@ -326,6 +343,21 @@ pub fn validate_token_metadata(
         if !validate_escaped_json(permissioned_routes) {
             return Err(format!("Invalid permissioned_routes JSON: failed to parse escaped JSON"))
         }
+    }
+    
+    // Length validation for previously unvalidated fields (3x sample data)
+    const MAX_SUBJECTUNIQUEIDENTIFIER_URL_LEN: usize = 100;
+    const MAX_SERVICEPROVIDER_ID_LEN: usize = 250;
+    const MAX_SERVICEPROVIDER_SIGNATURE_LEN: usize = 300;
+    
+    if subjectuniqueidentifier_url.len() > MAX_SUBJECTUNIQUEIDENTIFIER_URL_LEN {
+        return Err(format!("subjectuniqueidentifier_url exceeds max length of {} bytes", MAX_SUBJECTUNIQUEIDENTIFIER_URL_LEN));
+    }
+    if serviceprovider_id.len() > MAX_SERVICEPROVIDER_ID_LEN {
+        return Err(format!("serviceprovider_id exceeds max length of {} bytes", MAX_SERVICEPROVIDER_ID_LEN));
+    }
+    if serviceprovider_signature.len() > MAX_SERVICEPROVIDER_SIGNATURE_LEN {
+        return Err(format!("serviceprovider_signature exceeds max length of {} bytes", MAX_SERVICEPROVIDER_SIGNATURE_LEN));
     }
     
     Ok(())

@@ -8,8 +8,8 @@ use crate::events::emit_contract_status_change;
 /// For production, consider using 86400 (24 hours) for safety
 pub const DEFAULT_UPGRADE_DELAY_SECONDS: u64 = 30;
 
-/// Minimum allowed upgrade delay (1 minute)
-pub const MIN_UPGRADE_DELAY_SECONDS: u64 = 60;
+/// Minimum allowed upgrade delay (30 seconds)
+pub const MIN_UPGRADE_DELAY_SECONDS: u64 = 30;
 
 /// Handles contract upgrade process
 #[derive(BorshDeserialize, BorshSerialize)]

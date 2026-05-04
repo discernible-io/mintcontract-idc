@@ -371,7 +371,10 @@ impl Contract {
             &metadata.allowed_cidr,
             &metadata.allowed_iso3166list,
             &metadata.jwt_duration,
-            &metadata.permissioned_routes
+            &metadata.permissioned_routes,
+            &metadata.subjectuniqueidentifier_url,
+            &metadata.serviceprovider_id,
+            &metadata.serviceprovider_signature,
         );
         
         // If validation fails, panic with the error message
@@ -795,6 +798,7 @@ pub fn recover_token(&mut self, token_id: String, destination_account: AccountId
 // Token management functions
 #[payable]
 pub fn rodit_burn(&mut self, token_id: String) {
+    self.assert_owner();
     self.assert_contract_active();
     
     // Require exactly 1 yocto to prevent misuse with function-call access keys
@@ -803,13 +807,8 @@ pub fn rodit_burn(&mut self, token_id: String) {
         "Requires attached deposit of exactly 1 yoctoNEAR"
     );
         
-    let owner_id = env::predecessor_account_id();
     let token = self.tokens_by_id.get(&token_id).expect("No token found");
-        
-    require!(
-        token.owner_id == owner_id,
-        "Only token owner can burn the token"
-    );
+    let owner_id = token.owner_id.clone();
 
     // Implement checks-effects-interactions pattern
     // 1. Checks (already done above)
@@ -901,11 +900,7 @@ fn internal_add_token_to_owner(&mut self, account_id: &AccountId, token_id: &Str
         .get(account_id)
         .unwrap_or_else(|| Vector::new(format!("tokens_per_owner{}", account_id).as_bytes().to_vec()));
 
-    // Prevent duplicates now that we're using Vector
-    let exists = tokens_vec.iter().any(|t| t.as_str() == token_id.as_str());
-    if !exists {
-        tokens_vec.push(token_id);
-    }
+    tokens_vec.push(token_id);
 
     self.tokens_per_owner.insert(account_id, &tokens_vec);
 }

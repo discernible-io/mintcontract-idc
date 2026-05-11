@@ -1519,4 +1519,49 @@ Categories are ordered by value count to optimize charset usage:
 
 ---
 
-**Last Updated**: 2026-10-02
+## Suggested Improvements for Future Releases
+
+The following enhancements are recommended for implementation in upcoming versions:
+
+### 1. Permanent Minting Shutdown (Security)
+- **Purpose**: Provide owner with irreversible "kill switch" to block unauthorized mints
+- **Implementation**: Add `minting_closed: bool` field to contract state, initialize to `false`
+- **Function**: `close_minting_forever()` (owner-only, 1 yocto guard) to flip flag once
+- **Behavior**: `rodit_mint` aborts if flag is set; transfers, burns, and views unaffected
+- **Benefit**: Prevents minting after security incident while keeping contract operational
+
+### 2. Upgrade State Resilience (Reliability)
+- **Purpose**: Handle state layout changes across upgrades without deserialization failures
+- **Implementation**: 
+  - Create `ContractLegacyState` struct matching pre-upgrade layout
+  - In `upgrade()`, try deserializing both new and legacy formats
+  - Extract rebuild logic into `rebuild_from_previous_state()` helper
+- **Benefit**: Smooth upgrades even when adding new fields; prevents bricking on version mismatches
+
+### 3. Implicit Account Funding (Operational)
+- **Purpose**: Ensure newly minted tokens show up in user wallets immediately
+- **Implementation**:
+  - Define `MIN_ACCOUNT_CREATION_TRANSFER = 0.00125 NEAR` (NEAR's implicit account minimum)
+  - Set `DEFAULT_INITIALIZE_FEE` to this value
+  - In fee handler, transfer `max(initialize_fee, MIN_ACCOUNT_CREATION_TRANSFER)` to recipient
+- **Benefit**: Implicit accounts are created on first mint; tokens visible in wallets without manual funding
+
+### 4. Fee Signature Binding with Backward Compatibility (Security)
+- **Purpose**: Prevent replay attacks while supporting legacy clients
+- **Implementation**:
+  - Require `token_id` and `mintingfeeaccount` in signed JSON (mandatory)
+  - Make `owneraccount_id` optional: validate if present, allow if absent
+- **Benefit**: Modern clients gain stronger binding; legacy integrations continue working
+
+### 5. README Length Optimization (Documentation)
+- **Purpose**: Reduce verbosity while retaining critical information
+- **Changes**:
+  - Consolidate metadata field examples into single table
+  - Move detailed validation rules to separate `VALIDATION.md`
+  - Shorten deployment examples to essential commands
+  - Use collapsible sections for advanced topics
+- **Benefit**: Faster onboarding; easier maintenance
+
+---
+
+**Last Updated**: 2026-05-11

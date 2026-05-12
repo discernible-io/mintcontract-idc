@@ -45,6 +45,8 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - **Storage Management**: Automatic tracking and refunding of storage costs
 - **Event Logging**: NEP-297-style standardized event emission
 - **JSON-LD Metadata**: Semantic interoperability with DID:wba vocabulary
+- **Irreversible Minting Kill Switch**: Owner-only permanent disable mechanism that persists across upgrades
+- **Capacity Threshold Logging**: Automatic events at 50%, 55%, 60%, 65%+ utilization milestones
 
 **Security Features**:
 - Checks-effects-interactions pattern to prevent reentrancy attacks
@@ -54,6 +56,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - Comprehensive input validation on all metadata fields
 - Owner-only access control for administrative functions
 - 1 yoctoNEAR deposit requirement on state-changing functions to prevent function-call access key misuse
+- Irreversible minting kill switch for emergency protocol halts
 
 ---
 
@@ -425,6 +428,7 @@ pub struct Contract {
     pub upgrade_config: ContractUpgrade,                        // Upgrade state
     pub fees: ContractFees,                                     // Fee configuration
     pub mint_rate_limits: LookupMap<AccountId, Vec<u64>>,      // Rate limiting
+    pub minting_permanently_disabled: bool,                     // Irreversible kill switch
 }
 ```
 
@@ -432,12 +436,13 @@ pub struct Contract {
 
 Defined in `src/lib.rs`:
 
-- `RODIT_METADATA_SPEC`: `"IdentityClaw-near.org-20260404"` - Contract version
+- `RODIT_METADATA_SPEC`: `"Discernible-2026v2-identyclaw-com-20260427"` - Contract version
 - `CONTRACT_NAME`: `"2026v1-identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
-- `RATE_LIMIT_WINDOW`: 3600 seconds (1 hour)
-- `MAX_MINTS_PER_WINDOW`: 10 mints per account per hour
+- `RATE_LIMIT_WINDOW`: 7200 seconds (2 hours)
+- `MAX_MINTS_PER_WINDOW`: 200 mints per account per 2-hour window
+- `CONTRACT_CAPACITY`: 50400 tokens - Maximum recommended supply for capacity tracking
 
 ### Core Data Types
 
@@ -506,6 +511,7 @@ pub struct TokenMetadata {
 - `get_contract_stats()` - Supply and timestamps
 - `get_fees()` - Current fee configuration
 - `get_config()` - Complete contract configuration
+- `is_minting_permanently_disabled()` - Check if minting is permanently disabled
 
 #### Administrative Functions
 
@@ -513,6 +519,7 @@ pub struct TokenMetadata {
 - `pause_contract()` - Suspend operations (owner only)
 - `resume_contract()` - Resume operations (owner only)
 - `recover_token(token_id, destination)` - Recover lost tokens (owner only)
+- `disable_minting_permanently()` - Permanently disable minting (irreversible, persists across upgrades)
 
 **Upgrade Management** (time-locked):
 - `propose_upgrade()` - Start upgrade process (24-hour delay)
@@ -549,7 +556,7 @@ pub struct TokenMetadata {
 
 **`events.rs`**:
 - NEP-297 compliant event emission
-- Events: mint, transfer, burn, recover, signer_added, signer_removed, contract_status_change
+- Events: mint, transfer, burn, recover, signer_added, signer_removed, contract_status_change, minting_disabled, capacity (at 5% thresholds above 50%)
 
 **`storage.rs`**:
 - Calculates storage costs
@@ -807,9 +814,12 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 ### Security Fixes Applied
 
 #### ✅ Signature Binding to Parameters (CRITICAL)
-- Fee signature is now bound to function parameters
-- Prevents replay attacks where a valid signature for one token could be used to mint a different token
+- Fee signature is bound to function parameters `token_id`, `mintingfeeaccount`, `mintingfee_value`, and optional `owneraccount_id`
+- Contract double-checks the caller-provided `mintingfee_value`, signed JSON payload, and attached deposit all match
+- Prevents replay of signed fee payloads across different minting operations while preserving existing caller expectations
 - Verifies `token_id`, `mintingfeeaccount`, and `owneraccount_id` match before signature verification
+
+> **Known low-risk gap**: current callers do not include `owneraccount_id` inside the signed fee JSON. An attacker who intercepts that payload *and* mints before the legitimate caller could redirect the token to themselves. Mitigation: update signing services to embed and sign `owneraccount_id` in the fee payload.
 
 #### ✅ 1 Yocto Guards (HIGH)
 - All state-changing functions now require 1 yocto deposit
@@ -835,15 +845,15 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 
 ### Security Improvements
 
-#### ✅ Upgrade Delay Enhancement (HIGH)
-- Increased default upgrade delay from 30 seconds to **24 hours**
-- Bounds: minimum 1 hour, maximum 7 days
-- Provides users adequate time to review and respond to contract upgrades
+#### 🚧 Upgrade Delay Enhancement (Deferred)
+- Target: increase default upgrade delay beyond 30 seconds once caller tooling is ready
+- Current behavior remains at 30 seconds (test/dev friendly)
+- Will revisit after coordinating with caller expectations
 
-#### ✅ Conditional Debug Logging (MEDIUM-HIGH)
-- Debug logs wrapped in `#[cfg(debug_assertions)]` blocks
-- Completely removed from production releases
-- Significant gas cost reduction
+#### 🚧 Conditional Debug Logging (Deferred)
+- Goal: gate verbose logging behind `#[cfg(debug_assertions)]`
+- Current builds retain existing logging behavior for compatibility
+- Re-enable once deployment story is settled
 
 #### ✅ Configurable Fee System (MEDIUM)
 - **ContractFees struct**: Stores configurable fee values
@@ -854,17 +864,32 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
   - `get_fees()`: View current fee configuration
 
 #### ✅ Rate Limiting System (HIGH)
-- **Rate limit window**: 1 hour (3600 seconds)
-- **Maximum mints per window**: 10 mints per account
+- **Rate limit window**: 2 hours (7200 seconds)
+- **Maximum mints per window**: 200 mints per account
 - **Automatic cleanup**: Old timestamps are removed from tracking
-- **View function**: `get_remaining_mints()` to check available mints
 - Prevents spam attacks and abuse
+
+#### ✅ Irreversible Minting Kill Switch (CRITICAL)
+- **Function**: `disable_minting_permanently()` - Owner-only, cannot be reversed
+- **Persistence**: State survives contract upgrades via `#[borsh(default)]` attribute
+- **Enforcement**: All minting attempts fail immediately if disabled
+- **Event**: `rodit_minting_disabled` emitted when activated
+- **Use case**: Emergency protocol halt or service discontinuation
+
+#### ✅ Capacity Threshold Logging (MEDIUM)
+- **Stateless tracking**: No persistent state required, calculated on each mint
+- **Thresholds**: Events emitted at 50%, 55%, 60%, 65%, 70%, etc. utilization
+- **Calculation**: Integer percentage = `(total_supply * 100) / CONTRACT_CAPACITY`
+- **Emission logic**: Only emits when crossing a new 5% threshold above 50%
+- **Event payload**: Includes total_supply, capacity, percentage_used, and threshold_percent
+- **Capacity constant**: 50400 tokens (configurable via CONTRACT_CAPACITY)
 
 #### ✅ Storage Cost Management (MEDIUM)
 - **Automatic storage calculation**: Storage costs calculated from actual usage during minting
 - **Included in minting fee**: No pre-deposit required
 - **Direct refunds on burn**: Storage refunded directly to the user when tokens are burned
 - **Transparent tracking**: Storage usage is logged
+- **Storage buffer**: 10% buffer added to calculated costs for future growth
 
 #### ✅ Enhanced Input Validation (MEDIUM)
 - **URL Validation**: Enforces HTTPS-only, validates domain structure

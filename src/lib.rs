@@ -212,6 +212,8 @@ pub struct Contract {
     pub upgrade_config: ContractUpgrade,
     pub fees: ContractFees,
     pub mint_rate_limits: LookupMap<AccountId, Vec<u64>>, // Track mint timestamps per account
+    #[borsh(default)]
+    pub minting_permanently_disabled: bool,
 }
 
 #[near_bindgen]
@@ -253,6 +255,7 @@ impl Contract {
                 storage_cost_per_byte: DEFAULT_STORAGE_COST_PER_BYTE,
             },
             mint_rate_limits: LookupMap::new(b"mint_rate_limits".to_vec()),
+            minting_permanently_disabled: false,
         }
     }
     
@@ -315,6 +318,7 @@ impl Contract {
             
             fees: old_contract.fees,
             mint_rate_limits: old_contract.mint_rate_limits,
+            minting_permanently_disabled: old_contract.minting_permanently_disabled,
         };
         
         // Verify the upgrade was successful by checking critical values
@@ -352,10 +356,12 @@ impl Contract {
         metadata: TokenMetadata,
         owneraccount_id: AccountId,
         mintingfee_account: AccountId,
+        mintingfee_value: String,
         fee_signature_base64url: String,
         fee_data_json: String, // Added parameter for fee data JSON string
     ) {
         self.assert_contract_active();
+        self.assert_minting_enabled();
         
         // Check rate limiting
         self.check_and_update_rate_limit(&owneraccount_id);
@@ -432,12 +438,22 @@ impl Contract {
         let mintingfee_str = fee_data.get("mintingfee")
             .and_then(|v| v.as_str())
             .unwrap_or_else(|| panic!("mintingfee not found or not a string in fee data"));
-        
-        // Remove any " NEAR" suffix if present
-        let clean_fee = mintingfee_str.trim_end_matches(" NEAR");
-        
+
+        // Remove any " NEAR" suffix if present in both sources (signed JSON and argument)
+        let clean_fee_json = mintingfee_str.trim().trim_end_matches(" NEAR");
+        let clean_fee_argument = mintingfee_value.trim().trim_end_matches(" NEAR");
+
+        require!(
+            clean_fee_argument == clean_fee_json,
+            format!(
+                "Minting fee mismatch: argument '{}' differs from signed value '{}'",
+                mintingfee_value,
+                mintingfee_str
+            )
+        );
+
         // Convert deposit string (as decimal NEAR) to yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
-        let mintingfee_yocto = Self::convert_depositstring_to_yoctonear(clean_fee)
+        let mintingfee_yocto = Self::convert_depositstring_to_yoctonear(clean_fee_json)
             .unwrap_or_else(|e| panic!("Failed to convert mintingfee to yoctoNEAR: {}", e));
         
         // Compare with attached deposit
@@ -473,6 +489,8 @@ impl Contract {
         self.token_metadata_by_id.insert(&token_id, &metadata);
         self.internal_add_token_to_owner(&owneraccount_id, &token_id);
 
+        let previous_total_supply = self.stats.total_supply;
+
         // Update contract stats
         self.stats.total_supply = self.stats.total_supply.checked_add(1)
             .unwrap_or_else(|| {
@@ -503,8 +521,8 @@ impl Contract {
         // Emit standardized event
         events::emit_mint_event(&owneraccount_id, &token_id);
         
-        // Emit capacity tracking event
-        events::emit_capacity(self.stats.total_supply, CONTRACT_CAPACITY);
+        // Emit capacity tracking event when hitting 5% thresholds above 50%
+        self.emit_capacity_if_threshold(previous_total_supply);
     }
 
     // The handle_account_fees_and_storage function has been moved to the storage module
@@ -718,10 +736,39 @@ impl Contract {
     pub fn assert_contract_active(&self) {
         require!(self.status == ContractStatus::Active, "Contract is not active");
     }
+
+    fn assert_minting_enabled(&self) {
+        require!(
+            !self.minting_permanently_disabled,
+            "Minting has been permanently disabled"
+        );
+    }
     
     pub fn assert_owner(&self) {
-    require!(env::predecessor_account_id() == self.owner_id, "Only the contract owner can call this function");
-}
+        require!(env::predecessor_account_id() == self.owner_id, "Only the contract owner can call this function");
+    }
+
+    fn emit_capacity_if_threshold(&self, previous_total_supply: u64) {
+        if CONTRACT_CAPACITY == 0 {
+            return;
+        }
+
+        let capacity = CONTRACT_CAPACITY as u128;
+        let previous_percent = (previous_total_supply as u128 * 100) / capacity;
+        let current_percent = (self.stats.total_supply as u128 * 100) / capacity;
+
+        if current_percent < 50 || current_percent % 5 != 0 {
+            return;
+        }
+
+        if current_percent > previous_percent {
+            events::emit_capacity(
+                self.stats.total_supply,
+                CONTRACT_CAPACITY,
+                current_percent as u16,
+            );
+        }
+    }
 
 // New upgrade-related functions
 pub fn propose_upgrade(&mut self) -> bool {
@@ -839,7 +886,7 @@ pub fn rodit_burn(&mut self, token_id: String) {
     // Update contract stats using checked arithmetic
     self.stats.total_supply = self.stats.total_supply.checked_sub(1).unwrap_or_else(|| env::panic_str("Total supply underflow"));
     self.stats.last_updated_at = env::block_timestamp() / 1_000_000_000;
-        
+
     // 3. Interactions: External calls come last
     // Emit standardized event
     events::emit_burn_event(&owner_id, &token_id);
@@ -863,6 +910,10 @@ pub fn get_contract_status(&self) -> ContractStatus {
 
 pub fn get_contract_stats(&self) -> ContractStats {
     self.stats.clone()
+}
+
+pub fn is_minting_permanently_disabled(&self) -> bool {
+    self.minting_permanently_disabled
 }
 
 pub fn rodit_tokens_filtered(
@@ -1003,6 +1054,26 @@ pub fn resume_contract(&mut self) {
     self.status = ContractStatus::Active;
     events::emit_contract_status_change("Active");
 }
+
+    /// Permanently disables minting. This action cannot be undone and persists across upgrades.
+    #[payable]
+    pub fn disable_minting_permanently(&mut self) {
+        self.assert_owner();
+
+        require!(
+            env::attached_deposit().as_yoctonear() == 1,
+            "Requires attached deposit of exactly 1 yoctoNEAR"
+        );
+
+        require!(
+            !self.minting_permanently_disabled,
+            "Minting has already been permanently disabled"
+        );
+
+        self.minting_permanently_disabled = true;
+        events::emit_minting_disabled(&env::predecessor_account_id());
+    }
+
     // Fee management functions
     /// Updates the initialization fee with bounds checking
     #[payable]
@@ -1070,6 +1141,7 @@ pub fn resume_contract(&mut self) {
             "contract_account": env::current_account_id(),
             "owner": self.owner_id,
             "status": format!("{:?}", self.status),
+            "minting_permanently_disabled": self.minting_permanently_disabled,
             "version": self.metadata.versionnumber,
             "authorized_signers_count": self.authorized_signers.len(),
             "fees": {

@@ -50,7 +50,7 @@ use upgrade::ContractUpgrade;
 
 pub const RODIT_METADATA_SPEC: &str = "Discernible-2026v2-identyclaw-com-20260427";
 pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
-pub const CONTRACT_NAME: &str = "2026v1-identyclaw-com";
+pub const CONTRACT_NAME: &str = "2026v2-identyclaw-com";
 
 // Default fee values - can be overridden by contract owner
 pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
@@ -212,7 +212,6 @@ pub struct Contract {
     pub upgrade_config: ContractUpgrade,
     pub fees: ContractFees,
     pub mint_rate_limits: LookupMap<AccountId, Vec<u64>>, // Track mint timestamps per account
-    #[borsh(default)]
     pub minting_permanently_disabled: bool,
 }
 

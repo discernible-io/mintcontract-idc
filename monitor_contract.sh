@@ -6,7 +6,7 @@
 set -e
 
 # Default values
-ACCOUNT_ID=${1:-"2026v1-identyclaw-com.near"}
+ACCOUNT_ID=${1:-"2026v2-identyclaw-com.near"}
 NETWORK=${2:-"mainnet"}
 
 NEAR_CLI=$(which near 2>/dev/null || echo "")

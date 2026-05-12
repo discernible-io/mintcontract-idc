@@ -2,8 +2,8 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: Discernible-2026v1-identyclaw-com-20260404  
-**Example Account**: `2026v1-identyclaw-com.near`  
+**Contract Version**: Discernible-2026v2-identyclaw-com-20260404  
+**Example Account**: `2026v2-identyclaw-com.near`  
 **Controlling Domain**: `identityclaw.com`
 
 ---
@@ -265,11 +265,11 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near contract call-function as-read-only 2026v1-identyclaw-com.near get_fees \
+near contract call-function as-read-only 2026v2-identyclaw-com.near get_fees \
 network-config mainnet now
 
 # View complete configuration
-near contract call-function as-read-only 2026v1-identyclaw-com.near get_config \
+near contract call-function as-read-only 2026v2-identyclaw-com.near get_config \
   network-config mainnet-fastnear now
 ```
 ---
@@ -437,7 +437,7 @@ pub struct Contract {
 Defined in `src/lib.rs`:
 
 - `RODIT_METADATA_SPEC`: `"Discernible-2026v2-identyclaw-com-20260427"` - Contract version
-- `CONTRACT_NAME`: `"2026v1-identyclaw-com"` - Issuer identifier
+- `CONTRACT_NAME`: `"2026v2-identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 7200 seconds (2 hours)
@@ -606,7 +606,7 @@ pub struct TokenMetadata {
 ### Contract Constants
 
 - `RODIT_METADATA_SPEC = "IdentityClaw-near.org-20260404"`
-- Issuer URL: `"2026v1-identyclaw-com"`
+- Issuer URL: `"2026v2-identyclaw-com"`
 
 ---
 
@@ -725,7 +725,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=2026v1-identyclaw-com.near;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=2026v2-identyclaw-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -764,7 +764,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=2026v1-identyclaw-com.near;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=2026v2-identyclaw-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -785,7 +785,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=2026v1-identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=2026v2-identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -1212,17 +1212,17 @@ All events use this envelope:
 
 2. **Deploy code to testnet**:
    ```bash
-   near deploy --accountId 2026v1-identyclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
+   near deploy --accountId 2026v2-identyclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
    ```
 
 3. **Initialize the contract**:
    ```bash
-   near call 2026v1-identyclaw-com.near init '{"owner_id":"2026v1-identyclaw-com.near","metadata":null}' --accountId 2026v1-identyclaw-com.near
+   near call 2026v2-identyclaw-com.near init '{"owner_id":"2026v2-identyclaw-com.near","metadata":null}' --accountId 2026v2-identyclaw-com.near
    ```
 
 ### Notes
 
-When CONTRACT_NAME=2026v1-identyclaw-com.near
+When CONTRACT_NAME=2026v2-identyclaw-com.near
 Then replacing - with . we get 
 pub const CONTRACT_NAME: &str = "identityclaw.com";
 Where identityclaw.com is the controlling domain for the contract.

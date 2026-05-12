@@ -109,7 +109,7 @@ COMMANDS:
                - Can be called at any time after deployment.
 
 ARGUMENTS:
-  account_id   NEAR account ID that owns the contract (e.g., 2026v1-identyclaw-com.near)
+  account_id   NEAR account ID that owns the contract (e.g., 2026v2-identyclaw-com.near)
   network      Optional network connection name (default: testnet)
   rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
   signerN      Authorized signer public keys to add (64 lowercase hex characters)
@@ -123,22 +123,22 @@ NOTES:
 
 EXAMPLES:
   1. Initial deployment to testnet (no custom RPC):
-       ./deploy.sh deploy 2026v1-identyclaw-com.near
+       ./deploy.sh deploy 2026v2-identyclaw-com.near
 
   2. Upgrade existing contract on mainnet:
-       ./deploy.sh deploy 2026v1-identyclaw-com.near mainnet
+       ./deploy.sh deploy 2026v2-identyclaw-com.near mainnet
 
   3. Deploy using a custom RPC endpoint:
-       ./deploy.sh deploy 2026v1-identyclaw-com.near mainnet-custom https://rpc.mainnet.near.org
+       ./deploy.sh deploy 2026v2-identyclaw-com.near mainnet-custom https://rpc.mainnet.near.org
 
   4. Add authorized signers on testnet (no custom RPC):
-       ./deploy.sh add-signers 2026v1-identyclaw-com.near testnet "" \
+       ./deploy.sh add-signers 2026v2-identyclaw-com.near testnet "" \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
          43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \
          3467c4e8f5b0445d474742f976d24ca1991d843f58d8b9aaf45e6b6b8ff6603a
 
   5. Add signers using default network (testnet) — network argument omitted:
-       ./deploy.sh add-signers 2026v1-identyclaw-com.near \
+       ./deploy.sh add-signers 2026v2-identyclaw-com.near \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
 
 EOF
@@ -300,7 +300,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/contract_2026v2_identyclaw_com_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -401,7 +401,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/contract_2026v1_identyclaw_com_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/contract_2026v2_identyclaw_com_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1

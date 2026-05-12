@@ -522,8 +522,8 @@ fn char_to_index(ch: u8, position: usize) -> Option<usize> {
 /// Accepts both formats:
 /// - **Short format**: Just the 12-character facial token ID (e.g., "bjuveperbngn")
 /// - **Full RODiT format**: Complete format with bc, sc, and one or more id fields
-///   (e.g., "bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn")
-///   (e.g., "bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm")
+///   (e.g., "bc=near.org;sc=2026v2-identyclaw-com.near;id=bjuveperbngn")
+///   (e.g., "bc=near.org;sc=2026v2-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm")
 /// 
 /// # Arguments
 /// * `token_id` - The token ID string in either short or full RODiT format
@@ -537,10 +537,10 @@ fn char_to_index(ch: u8, position: usize) -> Option<usize> {
 /// validate_face_token_id("bjuveperbngn").unwrap();
 /// 
 /// // Full RODiT format (from signroot.js)
-/// validate_face_token_id("bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn").unwrap();
+/// validate_face_token_id("bc=near.org;sc=2026v2-identyclaw-com.near;id=bjuveperbngn").unwrap();
 /// 
 /// // Combined format with two tokens
-/// validate_face_token_id("bc=near.org;sc=2026v1-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm").unwrap();
+/// validate_face_token_id("bc=near.org;sc=2026v2-identyclaw-com.near;id=bjuveperbngn;id=ctedcjudgqbm").unwrap();
 /// ```
 pub fn validate_face_token_id(token_id: &str) -> Result<(), String> {
     if token_id.is_empty() {

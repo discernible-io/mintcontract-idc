@@ -1,5 +1,5 @@
 [package]
-name = "contract-2026v1-identyclaw-com-near"
+name = "contract-2026v2-identyclaw-com-near"
 version = "0.2.0"
 edition = "2021"
 authors = ["Your Name <org@rodit.org>"]

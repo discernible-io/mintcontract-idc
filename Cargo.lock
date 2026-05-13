@@ -237,7 +237,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "contract-2026v1-identyclaw-com-near"
+name = "contract-2026v2-identyclaw-com-near"
 version = "0.2.0"
 dependencies = [
  "base64 0.13.1",

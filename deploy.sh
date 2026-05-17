@@ -11,6 +11,9 @@
 #   add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
 #       Adds one or more authorized signer public keys to the contract
 #
+#   verify|status <account_id> [network] [rpc_url]
+#       Calls read-only contract methods to verify deployed contract state
+#
 #   help | --help | -h
 #       Displays detailed usage information
 
@@ -88,6 +91,53 @@ add_signers_to_contract() {
   echo ""
 }
 
+view_contract_method() {
+  local method=$1
+  local output
+
+  echo "--- $method ---"
+  if ! output=$($NEAR_CLI view "$ACCOUNT_ID" "$method" --network-id "$NETWORK" 2>&1); then
+    echo "ERROR: Failed to call $method"
+    echo "$output"
+    echo ""
+    return 1
+  fi
+
+  echo "$output"
+  echo ""
+}
+
+verify_contract() {
+  local failed=0
+  local methods=(
+    "rodit_metadata"
+    "get_contract_status"
+    "get_config"
+    "get_fees"
+    "get_contract_stats"
+    "rodit_total_supply"
+    "view_authorized_signers"
+  )
+
+  echo "=== Contract Verification ==="
+  echo "Account ID: $ACCOUNT_ID"
+  echo "Network Connection: $NETWORK"
+  echo ""
+
+  for method in "${methods[@]}"; do
+    if ! view_contract_method "$method"; then
+      failed=1
+    fi
+  done
+
+  if [ "$failed" -ne 0 ]; then
+    echo "Contract verification completed with errors."
+    return 1
+  fi
+
+  echo "Contract verification completed successfully."
+}
+
 print_help() {
   cat <<EOF
 RODIT Contract Deployment & Signer Management Script v${VERSION}
@@ -97,6 +147,7 @@ USAGE:
   ./deploy.sh help|--help|-h
   ./deploy.sh deploy <account_id> [network] [rpc_url]
   ./deploy.sh add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
+  ./deploy.sh verify|status <account_id> [network] [rpc_url]
 
 COMMANDS:
   deploy       Build and deploy/upgrade the contract code for the specified account.
@@ -107,6 +158,9 @@ COMMANDS:
   add-signers  Adds one or more authorized Ed25519 signer public keys (64-char hex).
                - Use implicit account IDs (the lowercase hex public key).
                - Can be called at any time after deployment.
+
+  verify       Calls read-only contract methods to verify deployed contract state.
+  status       Alias for verify.
 
 ARGUMENTS:
   account_id   NEAR account ID that owns the contract (e.g., 2026v2-identyclaw-com.near)
@@ -140,6 +194,9 @@ EXAMPLES:
   5. Add signers using default network (testnet) — network argument omitted:
        ./deploy.sh add-signers 2026v2-identyclaw-com.near \
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
+
+  6. Verify deployed contract state:
+       ./deploy.sh verify 2026v2-identyclaw-com.near mainnet
 
 EOF
 }
@@ -222,6 +279,29 @@ case "$COMMAND" in
       exit 1
     fi
     ;;
+  "verify"|"status")
+    if [ -z "$1" ]; then
+      echo "Error: account_id is required for $COMMAND command"
+      echo "Run './deploy.sh help' for usage information."
+      exit 1
+    fi
+    ACCOUNT_ID=$1
+    shift
+
+    if [ -n "$1" ]; then
+      NETWORK=$1
+      shift
+    fi
+
+    if [ -n "$1" ]; then
+      CUSTOM_RPC_URL=$1
+      shift
+    fi
+
+    if [ $# -gt 0 ]; then
+      echo "Warning: Extra arguments ignored for $COMMAND command: $@"
+    fi
+    ;;
   *)
     echo "Error: Unknown command '$COMMAND'"
     echo "Run './deploy.sh help' for usage information."
@@ -247,6 +327,11 @@ fi
 
 if [ "$COMMAND" = "add-signers" ]; then
   add_signers_to_contract
+  exit 0
+fi
+
+if [ "$COMMAND" = "verify" ] || [ "$COMMAND" = "status" ]; then
+  verify_contract
   exit 0
 fi
 

@@ -793,19 +793,19 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 ### Operational Layers
 
 - **Portal Sanctum FE**: Root profile inputs (operator UI), authenticates to Signroot
-  - URL: https://testnet-serverfe.cableguard.net:6443/
+  - URL: https://testnet-serverfe.discernible.net:6443/
 - **Signroot**: Root RODiT ("mint root"), produces serviceprovider_id and signature
-  - URL: https://dev-api.cableguard.net:8443
+  - URL: https://dev-api.discernible.net:8443
 - **Server FE**: Server RODiT ("mint server"), authenticates to Sanctum
-  - URL: https://testnet-serverfe.cableguard.net:2443/
+  - URL: https://testnet-serverfe.discernible.net:2443/
 - **Signserver**: Server RODiT issuance (backend signer)
-  - URL: https://dev-api.cableguard.net:8443
+  - URL: https://dev-api.discernible.net:8443
 - **Client FE**: Client RODiT ("mint client"), authenticates to Server
   - URL: mint.APIURL:4443
 - **Signclient**: Client RODiT issuance (backend signer), sanitizes permissioned_routes
   - URL: sign.APIURL:8443
 - **Signportal**: Client onboarding via Portal
-  - URL: https://testnet-clientfe.cableguard.net:6443/
+  - URL: https://testnet-clientfe.discernible.net:6443/
 
 ---
 

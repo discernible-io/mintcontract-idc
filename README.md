@@ -1589,4 +1589,10 @@ The following enhancements are recommended for implementation in upcoming versio
 
 ---
 
+## License
+
+UNLICENSED — Copyright (c) 2026 Discernible IO. All rights reserved.
+
+---
+
 **Last Updated**: 2026-05-11

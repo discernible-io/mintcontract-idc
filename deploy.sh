@@ -201,11 +201,11 @@ EXAMPLES:
 EOF
 }
 
-# Detect NEAR CLI location
-NEAR_CLI=$(which near 2>/dev/null || echo "")
-if [ -z "$NEAR_CLI" ]; then
+# Detect NEAR CLI command
+NEAR_CLI="near"
+if ! command -v "$NEAR_CLI" >/dev/null 2>&1; then
   echo "Error: NEAR CLI not found in PATH"
-  echo "Please install NEAR CLI: cargo install near-cli-rs"
+  echo "Please install NEAR CLI and ensure it is available as 'near'."
   exit 1
 fi
 

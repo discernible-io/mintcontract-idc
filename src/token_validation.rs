@@ -9,8 +9,8 @@ use serde_json;
 
 // Regular expressions for validation
 lazy_static! {
-    /// Validates date format: YYYY-MM-DD (present but not exclusively)
-    static ref DATE_REGEX: Regex = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
+    /// Validates date format: YYYY-MM-DD
+    static ref DATE_REGEX: Regex = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
     
     /// Validates HTTPS URLs with basic structure checking (present but not exclusively)
     static ref URL_REGEX: Regex = Regex::new(r"https://[^\s/$.?#].[^\s]*").unwrap();
@@ -38,18 +38,19 @@ fn days_in_month(year: u32, month: u32) -> u32 {
 }
 
 /// Validates a date string format (YYYY-MM-DD)
-/// Checks for presence of valid date but not exclusively
+/// Accepts only 1970-01-01 as the no-expiration sentinel or dates from 2026-01-01 to 2100-12-31.
 /// 
 /// # Arguments
 /// * `date_str` - The date string to validate
 /// 
 /// # Returns
-/// * `bool` - true if a valid YYYY-MM-DD date is present in the string
+/// * `bool` - true if the string is an accepted YYYY-MM-DD date
 /// 
 /// # Examples
 /// ```
 /// assert!(validate_date_format("2026-12-31"));
-/// assert!(validate_date_format("Date: 2026-12-31 is valid"));
+/// assert!(validate_date_format("1970-01-01"));
+/// assert!(!validate_date_format("Date: 2026-12-31 is valid"));
 /// assert!(!validate_date_format("2026/12/31"));
 /// ```
 pub fn validate_date_format(date_str: &str) -> bool {
@@ -57,12 +58,12 @@ pub fn validate_date_format(date_str: &str) -> bool {
         return false;
     }
     
-    // Find if a date pattern exists in the string
-    if let Some(date_match) = DATE_REGEX.find(date_str) {
-        let matched_date = date_match.as_str();
-        
-        // Additional validation: check if date components are in valid ranges
-        let parts: Vec<&str> = matched_date.split('-').collect();
+    if date_str == "1970-01-01" {
+        return true;
+    }
+
+    if DATE_REGEX.is_match(date_str) {
+        let parts: Vec<&str> = date_str.split('-').collect();
         if parts.len() != 3 {
             return false;
         }
@@ -72,11 +73,46 @@ pub fn validate_date_format(date_str: &str) -> bool {
             parts[1].parse::<u32>(),
             parts[2].parse::<u32>()
         ) {
-            return year >= 2020 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= days_in_month(year, month);
+            return (2026..=2100).contains(&year)
+                && (1..=12).contains(&month)
+                && (1..=days_in_month(year, month)).contains(&day);
         }
     }
     
     false
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::*;
+
+    #[test]
+    fn test_no_expiration_sentinel_is_valid() {
+        assert!(validate_date_format("1970-01-01"));
+    }
+
+    #[test]
+    fn test_valid_date_range_boundaries() {
+        assert!(validate_date_format("2026-01-01"));
+        assert!(validate_date_format("2100-12-31"));
+        assert!(validate_date_format("2028-02-29"));
+    }
+
+    #[test]
+    fn test_rejects_dates_outside_allowed_values() {
+        assert!(!validate_date_format("1969-12-31"));
+        assert!(!validate_date_format("1970-01-02"));
+        assert!(!validate_date_format("2025-12-31"));
+        assert!(!validate_date_format("2101-01-01"));
+    }
+
+    #[test]
+    fn test_rejects_invalid_or_non_exact_dates() {
+        assert!(!validate_date_format("2026-02-29"));
+        assert!(!validate_date_format("2026/01/01"));
+        assert!(!validate_date_format("2026-1-1"));
+        assert!(!validate_date_format("Date: 2026-01-01 is valid"));
+    }
 }
 
 /// Validates a URL format
@@ -303,11 +339,11 @@ pub fn validate_token_metadata(
     
     // Date validations - similar to validateAndSetDate in utils.js
     if !validate_date_format(not_after) {
-        return Err(format!("Invalid not_after date format (should be YYYY-MM-DD): {}", not_after));
+        return Err(format!("Invalid not_after date (must be 1970-01-01 or YYYY-MM-DD from 2026-01-01 through 2100-12-31): {}", not_after));
     }
     
     if !validate_date_format(not_before) {
-        return Err(format!("Invalid not_before date format (should be YYYY-MM-DD): {}", not_before));
+        return Err(format!("Invalid not_before date (must be 1970-01-01 or YYYY-MM-DD from 2026-01-01 through 2100-12-31): {}", not_before));
     }
     
     // Numeric validations - similar to numeric validation in utils.js

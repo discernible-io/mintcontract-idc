@@ -3,6 +3,8 @@ name = "contract-2026v2-identyclaw-com-near"
 version = "0.2.0"
 edition = "2021"
 authors = ["Your Name <org@rodit.org>"]
+license = "LicenseRef-UNLICENSED"
+license-file = "LICENSE"
 
 [lib]
 crate-type = ["cdylib"]

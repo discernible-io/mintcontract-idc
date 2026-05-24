@@ -488,7 +488,7 @@ pub struct TokenMetadata {
    - Emits mint event
 
 2. **`rodit_transfer()`** - Transfer tokens
-   - Requires 1 yoctoNEAR deposit
+   - Requires 0.01 NEAR deposit (funds transfer storage costs)
    - Validates ownership
    - Updates state atomically
    - Emits transfer event
@@ -889,7 +889,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 - **Included in minting fee**: No pre-deposit required
 - **Direct refunds on burn**: Storage refunded directly to the user when tokens are burned
 - **Transparent tracking**: Storage usage is logged
-- **Storage buffer**: 10% buffer added to calculated costs for future growth
+- **Transfer deposit**: 0.01 NEAR required on each transfer (retained by contract for storage)
 
 #### ✅ Enhanced Input Validation (MEDIUM)
 - **URL Validation**: Enforces HTTPS-only, validates domain structure
@@ -973,7 +973,7 @@ View current fee configuration:
 near view YOUR_CONTRACT.testnet get_fees
 ```
 
-Or use the comprehensive config view:
+Or use the comprehensive config view (includes current `fees`, compile-time `fee_defaults`, `fee_bounds`, and `transfer_deposit_yocto`):
 
 ```bash
 near view YOUR_CONTRACT.testnet get_config
@@ -983,7 +983,7 @@ near view YOUR_CONTRACT.testnet get_config
 
 When someone calls `rodit_mint()`, the `handle_account_fees_and_storage()` function uses these configurable values to calculate and distribute fees:
 
-1. **Storage Cost**: `storage_cost_per_byte × bytes_used × 1.1` (10% buffer)
+1. **Storage Cost**: `storage_cost_per_byte × bytes_used`
 2. **Initialize Fee**: Transferred to the implicit account
 3. **Contract Fee**: `(remaining_after_storage_and_init) × contract_fee_percentage / 100`
 4. **Provider Fee**: Whatever remains goes to the minting fee account
@@ -1134,7 +1134,7 @@ near call <contract_id> rodit_mint '{"token_id":"<token_id>","metadata":{...},"f
 
 #### Transfer Token
 ```bash
-near call <contract_id> rodit_transfer '{"receiver_id":"<receiver>.testnet","token_id":"<token_id>","memo":null}' --accountId <owner_account> --depositYocto 1
+near call <contract_id> rodit_transfer '{"receiver_id":"<receiver>.testnet","token_id":"<token_id>","memo":null}' --accountId <owner_account> --amount 0.01
 ```
 
 #### Burn Token

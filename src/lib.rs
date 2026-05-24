@@ -65,6 +65,9 @@ pub const MAX_CONTRACT_FEE_PERCENTAGE: u128 = 10; // 10%
 pub const MIN_STORAGE_COST_PER_BYTE: u128 = 1_000_000_000_000_000_000; // 0.000001 NEAR
 pub const MAX_STORAGE_COST_PER_BYTE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
 
+/// Attached deposit required for token transfers (0.01 NEAR).
+pub const TRANSFER_DEPOSIT_YOCTO: u128 = 10_000_000_000_000_000_000_000;
+
 // Rate limiting constants
 pub const RATE_LIMIT_WINDOW: u64 = 7200; // 2 hours in seconds
 pub const MAX_MINTS_PER_WINDOW: u64 = 200; // Maximum 200 mints per 2 hours per account
@@ -571,10 +574,13 @@ impl Contract {
     ) {
         self.assert_contract_active();
         
-        // Require exactly 1 yocto to prevent misuse with function-call access keys
+        // Require transfer deposit (also prevents misuse with function-call access keys)
         require!(
-            env::attached_deposit().as_yoctonear() == 1,
-            "Requires attached deposit of exactly 1 yoctoNEAR"
+            env::attached_deposit().as_yoctonear() == TRANSFER_DEPOSIT_YOCTO,
+            format!(
+                "Requires attached deposit of exactly {} yoctoNEAR (0.01 NEAR)",
+                TRANSFER_DEPOSIT_YOCTO
+            )
         );
         
         let sender_id = env::predecessor_account_id();
@@ -1147,7 +1153,21 @@ pub fn resume_contract(&mut self) {
                 "initialize_fee": self.fees.initialize_fee.to_string(),
                 "contract_fee_percentage": self.fees.contract_fee_percentage,
                 "storage_cost_per_byte": self.fees.storage_cost_per_byte.to_string()
-            }
+            },
+            "fee_defaults": {
+                "initialize_fee": DEFAULT_INITIALIZE_FEE.to_string(),
+                "contract_fee_percentage": DEFAULT_CONTRACT_FEE_PERCENTAGE,
+                "storage_cost_per_byte": DEFAULT_STORAGE_COST_PER_BYTE.to_string()
+            },
+            "fee_bounds": {
+                "min_initialize_fee": MIN_INITIALIZE_FEE.to_string(),
+                "max_initialize_fee": MAX_INITIALIZE_FEE.to_string(),
+                "min_contract_fee_percentage": MIN_CONTRACT_FEE_PERCENTAGE,
+                "max_contract_fee_percentage": MAX_CONTRACT_FEE_PERCENTAGE,
+                "min_storage_cost_per_byte": MIN_STORAGE_COST_PER_BYTE.to_string(),
+                "max_storage_cost_per_byte": MAX_STORAGE_COST_PER_BYTE.to_string()
+            },
+            "transfer_deposit_yocto": TRANSFER_DEPOSIT_YOCTO.to_string()
         })
     }
 

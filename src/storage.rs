@@ -13,17 +13,10 @@ pub fn handle_account_fees_and_storage(
     // Calculate required storage cost based on actual usage
     let required_storage_cost = storage_cost_per_byte.checked_mul(storage_used as u128)
         .ok_or_else(|| "Storage cost calculation overflow".to_string())?;
-    
-    // Add a 10% buffer for future storage needs
-    let storage_with_buffer = required_storage_cost
-        .checked_mul(110)
-        .ok_or_else(|| "Storage buffer calculation overflow".to_string())?
-        .checked_div(100)
-        .ok_or_else(|| "Storage buffer division error".to_string())?;
     let attached_deposit = env::attached_deposit();
     
     // Ensure enough deposit is attached
-    let min_required = storage_with_buffer
+    let min_required = required_storage_cost
         .checked_add(initialize_fee)
         .ok_or_else(|| "Deposit calculation overflow".to_string())?;
 
@@ -41,7 +34,7 @@ pub fn handle_account_fees_and_storage(
     // Calculate contract fee (1% of remaining after storage and init fee)
     let attached_deposit_yocto = env::attached_deposit().as_yoctonear();
     let remaining_after_storage = attached_deposit_yocto
-        .checked_sub(storage_with_buffer)
+        .checked_sub(required_storage_cost)
         .ok_or_else(|| "Insufficient funds after storage costs".to_string())?
         .checked_sub(initialize_fee)
         .ok_or_else(|| "Insufficient funds after initialization fee".to_string())?;

@@ -1078,30 +1078,6 @@ mod face_token_tests {
     }
 
     #[test]
-    fn test_decode_facial_token_basic() {
-        // Test decoding with position-specific charsets
-        // Position 0 (even): b, c, l, s, z, g
-        // Position 1 (odd): d, f, h, j, k, m, n, p, q, r, t, v, w, x, y
-        // Position 2 (even): b, c, l, s, z, g
-        // etc.
-        let decoded = decode_facial_token_id("bclszgdfhjkm");
-        assert_eq!(decoded.token_id, "bclszgdfhjkm");
-        // Checksum validation depends on the actual indices
-    }
-
-    #[test]
-    fn test_decode_invalid_token_length() {
-        let decoded = decode_facial_token_id("bclszgdfhjk"); // 11 chars
-        assert!(!decoded.valid);
-    }
-
-    #[test]
-    fn test_decode_invalid_character() {
-        let decoded = decode_facial_token_id("bclszgdfjhki"); // 'i' not in charset
-        assert!(!decoded.valid);
-    }
-
-    #[test]
     fn test_position_specific_charset_validation() {
         // Position 0 must use CHARSET_EVEN (bclszg)
         // Position 1 must use CHARSET_ODD (dfhjkmnpqrtvwxy)

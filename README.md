@@ -2,8 +2,8 @@
 
 # RODiT: Policy-Rich Token Contract for API Access on NEAR
 
-**Contract Version**: Discernible-2026v2-identyclaw-com-20260404  
-**Example Account**: `2026v2-identyclaw-com.near`  
+**Contract Version**: Discernible-genaaaa-identyclaw-com-20260404  
+**Example Account**: `genaaaa-identyclaw-com.near`  
 **Controlling Domain**: `identityclaw.com`
 
 ---
@@ -39,9 +39,9 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - **Token Transfer**: Transfer tokens between NEAR accounts with event logging
 - **Token Burning**: Destroy tokens with automatic storage refunds
 - **Fee Management**: Configurable initialization fees, contract fee percentages, and storage costs
-- **Rate Limiting**: Prevent spam with 100 mints per hour per account
+- **Rate Limiting**: Prevent spam with 200 mints per 2-hour window per account
 - **Signature Verification**: Ed25519 signature verification for fee authorization
-- **Time-Locked Upgrades**: 24-hour delay mechanism for secure contract upgrades
+- **Time-Locked Upgrades**: Configurable delay mechanism for secure contract upgrades (default: 24 hours, adjustable via `set_upgrade_delay`)
 - **Storage Management**: Automatic tracking and refunding of storage costs
 - **Event Logging**: NEP-297-style standardized event emission
 - **JSON-LD Metadata**: Semantic interoperability with DID:wba vocabulary
@@ -52,7 +52,7 @@ A production-ready NEAR smart contract for managing API-access tokens with stron
 - Checks-effects-interactions pattern to prevent reentrancy attacks
 - Arithmetic overflow protection with checked operations
 - Rate limiting to prevent spam and DoS attacks
-- Time-delayed contract upgrades for security review periods
+- Time-delayed contract upgrades (configurable delay, default 24 hours)
 - Comprehensive input validation on all metadata fields
 - Owner-only access control for administrative functions
 - 1 yoctoNEAR deposit requirement on state-changing functions to prevent function-call access key misuse
@@ -122,7 +122,7 @@ The `deploy.sh` script handles initial deployment and upgrades automatically:
    - Calls `init()` to initialize the contract
 5. If already initialized (upgrade flow):
    - Proposes upgrade
-   - Waits for upgrade delay period (30 seconds for testnet)
+   - Waits for upgrade delay period (24 hours)
    - Finalizes upgrade
    - Deploys new contract code
    - Resumes contract
@@ -265,11 +265,11 @@ near call your-account.near set_contract_fee_percentage \
 
 ```bash
 # View all fees
-near contract call-function as-read-only 2026v2-identyclaw-com.near get_fees \
+near contract call-function as-read-only genaaaa-identyclaw-com.near get_fees \
 network-config mainnet now
 
 # View complete configuration
-near contract call-function as-read-only 2026v2-identyclaw-com.near get_config \
+near contract call-function as-read-only genaaaa-identyclaw-com.near get_config \
   network-config mainnet-fastnear now
 ```
 ---
@@ -293,7 +293,7 @@ near call your-account.near propose_upgrade '{}' \
   --gas 100000000000000 \
   --deposit 0
 
-# Step 2: Wait for upgrade delay (24 hours on mainnet)
+# Step 2: Wait for upgrade delay (default: 24 hours, configurable via set_upgrade_delay)
 # Check remaining time:
 near view your-account.near get_upgrade_status \
   network-config mainnet-fastnear now
@@ -436,8 +436,8 @@ pub struct Contract {
 
 Defined in `src/lib.rs`:
 
-- `RODIT_METADATA_SPEC`: `"Discernible-2026v2-identyclaw-com-20260427"` - Contract version
-- `CONTRACT_NAME`: `"2026v2-identyclaw-com"` - Issuer identifier
+- `RODIT_METADATA_SPEC`: `"Discernible-genaaaa-identyclaw-com-20260427"` - Contract version
+- `CONTRACT_NAME`: `"genaaaa-identyclaw-com"` - Issuer identifier
 - `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 7200 seconds (2 hours)
@@ -522,7 +522,7 @@ pub struct TokenMetadata {
 - `disable_minting_permanently()` - Permanently disable minting (irreversible, persists across upgrades)
 
 **Upgrade Management** (time-locked):
-- `propose_upgrade()` - Start upgrade process (24-hour delay)
+- `propose_upgrade()` - Start upgrade process (configurable delay, default 24 hours)
 - `cancel_upgrade()` - Cancel pending upgrade
 - `finalize_upgrade()` - Complete upgrade after delay
 - `get_upgrade_status()` - Check remaining time
@@ -565,7 +565,7 @@ pub struct TokenMetadata {
 
 **`upgrade.rs`**:
 - Time-locked upgrade state machine
-- 24-hour delay for mainnet safety
+- Configurable delay (default 24 hours, adjustable via `set_upgrade_delay`)
 - Prevents unauthorized upgrades
 
 ### Roles
@@ -605,8 +605,8 @@ pub struct TokenMetadata {
 
 ### Contract Constants
 
-- `RODIT_METADATA_SPEC = "IdentityClaw-near.org-20260404"`
-- Issuer URL: `"2026v2-identyclaw-com"`
+- `RODIT_METADATA_SPEC = "Discernible-genaaaa-identyclaw-com-20260427"`
+- Issuer URL: `"genaaaa-identyclaw-com"`
 
 ---
 
@@ -725,7 +725,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 - `max_requests`: `0` (no limit)
 - `allowed_cidr`: `0.0.0.0/0` for unconstrained lab testing
 - `jwt_duration`: `0` (no limit)
-- `serviceprovider_id`: `bc=near.org;sc=2026v2-identyclaw-com.near;id=<token_id>`
+- `serviceprovider_id`: `bc=near.org;sc=genaaaa-identyclaw-com.near;id=<token_id>`
 
 #### 2) Server RODiT (mint server)
 - **Environment**: Private network
@@ -764,7 +764,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
   "jwt_duration": "0",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://root.internal.example/subject",
-  "serviceprovider_id": "bc=near.org;sc=2026v2-identyclaw-com.near;id=<ROOT_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=genaaaa-identyclaw-com.near;id=<ROOT_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -785,7 +785,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
   "jwt_duration": "3600",
   "permissioned_routes": "{\"entities\":{\"name\":\"thing\",\"methods\":{\"/crud/onemethod\":\"+0\",\"/crud/anothermethod\":\"+0\"}}}",
   "subjectuniqueidentifier_url": "https://subjects.example/clients/123",
-  "serviceprovider_id": "bc=near.org;sc=2026v2-identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
+  "serviceprovider_id": "bc=near.org;sc=genaaaa-identyclaw-com.near;id=<ROOT_OR_SERVER_TOKEN_ID>",
   "serviceprovider_signature": "<signature>"
 }
 ```
@@ -845,10 +845,9 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 
 ### Security Improvements
 
-#### 🚧 Upgrade Delay Enhancement (Deferred)
-- Target: increase default upgrade delay beyond 30 seconds once caller tooling is ready
-- Current behavior remains at 30 seconds (test/dev friendly)
-- Will revisit after coordinating with caller expectations
+#### ✅ Upgrade Delay Enhancement (Done)
+- Default upgrade delay is now 24 hours (86400 seconds)
+- Minimum allowed delay is also 24 hours
 
 #### 🚧 Conditional Debug Logging (Deferred)
 - Goal: gate verbose logging behind `#[cfg(debug_assertions)]`
@@ -871,7 +870,7 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 
 #### ✅ Irreversible Minting Kill Switch (CRITICAL)
 - **Function**: `disable_minting_permanently()` - Owner-only, cannot be reversed
-- **Persistence**: State survives contract upgrades via `#[borsh(default)]` attribute
+- **Persistence**: State survives contract upgrades (field is preserved in the `upgrade()` migration)
 - **Enforcement**: All minting attempts fail immediately if disabled
 - **Event**: `rodit_minting_disabled` emitted when activated
 - **Use case**: Emergency protocol halt or service discontinuation
@@ -1061,11 +1060,11 @@ near view <contract_id> get_fees
 ```bash
 near view <contract_id> get_remaining_mints '{"account_id": "user.testnet"}'
 ```
-**Returns**: Number of mints remaining in current 1-hour window (max 10)
+**Returns**: Number of mints remaining in current 2-hour window (max 200)
 
 **Rate Limit Details**:
-- **Window**: 1 hour (3600 seconds)
-- **Max mints per window**: 10
+- **Window**: 2 hours (7200 seconds)
+- **Max mints per window**: 200 per account
 - **Automatic**: Rate limit is checked automatically during minting
 
 ### Upgrade Management Functions
@@ -1074,7 +1073,7 @@ near view <contract_id> get_remaining_mints '{"account_id": "user.testnet"}'
 ```bash
 near call <contract_id> propose_upgrade --accountId <owner_account>
 ```
-**Note**: Starts 24-hour delay period
+**Note**: Starts the configured delay period (default 24 hours)
 
 #### Check Upgrade Status
 ```bash
@@ -1091,13 +1090,13 @@ near call <contract_id> cancel_upgrade --accountId <owner_account>
 ```bash
 near call <contract_id> finalize_upgrade --accountId <owner_account>
 ```
-**Note**: Can only be called after 24-hour delay
+**Note**: Can only be called after the configured delay period has elapsed
 
 #### Set Upgrade Delay
 ```bash
 near call <contract_id> set_upgrade_delay '{"new_delay": 172800}' --accountId <owner_account>
 ```
-**Range**: 3600 seconds (1 hour) to 604800 seconds (7 days)
+**Minimum**: 86400 seconds / 24 hours (no upper bound)
 
 ### Query Functions
 
@@ -1201,36 +1200,41 @@ All events use this envelope:
 
 ---
 
-## Deployment Guide
+## Deployment Notes
 
-### Fresh Testnet Account Deployment
+When `CONTRACT_NAME=genaaaa-identyclaw-com.near`, replacing `-` with `.` gives
+`pub const CONTRACT_NAME: &str = "identityclaw.com";` where `identityclaw.com` is the controlling domain for the contract.
 
-1. **Build the contract WASM**:
-   ```bash
-   cargo near build --release
-   ```
+### Changing the Contract Account Name
 
-2. **Deploy code to testnet**:
-   ```bash
-   near deploy --accountId 2026v2-identyclaw-com.near --wasmFile target/wasm32-unknown-unknown/release/rodit_contract.wasm
-   ```
+The contract account name (e.g., `genaaaa-identyclaw-com.near`) is derived from a
+small number of source-of-truth files. Most other files pick it up automatically.
 
-3. **Initialize the contract**:
-   ```bash
-   near call 2026v2-identyclaw-com.near init '{"owner_id":"2026v2-identyclaw-com.near","metadata":null}' --accountId 2026v2-identyclaw-com.near
-   ```
+#### What to edit (3 touch points)
 
-### Notes
+| File | What to change | Propagates to |
+|------|----------------|---------------|
+| `account.env` | `CONTRACT_NAME=<name>.near` | `deploy.sh` (help text, default account), `monitor_contract.sh` (default account), `src/lib.rs` `CONTRACT_NAME` constant (via `build.rs` at compile time) |
+| `Cargo.toml` | `name = "contract-<name>-near"` | `Cargo.lock` (auto-regenerated), wasm artifact filename (auto-derived by `deploy.sh`) |
+| `src/lib.rs` | `RODIT_METADATA_SPEC` constant | Contains a versioned spec string with a date suffix; update when cutting a release |
 
-When CONTRACT_NAME=2026v2-identyclaw-com.near
-Then replacing - with . we get 
-pub const CONTRACT_NAME: &str = "identityclaw.com";
-Where identityclaw.com is the controlling domain for the contract.
+#### Documentation-only references (no runtime effect)
+
+These appear in `README.md` and in doc-comments in `src/token_validation.rs`.
+They should be updated for accuracy but do not affect contract behaviour:
+
+- `README.md` header (Contract Version, Example Account)
+- `README.md` CLI examples (`get_fees`, `get_config`)
+- `README.md` Key Constants tables
+- `README.md` JSON examples (`serviceprovider_id`)
+- `src/token_validation.rs` doc-comment examples for `validate_face_token_id`
+
+For build and deploy instructions, see [Deployment Guide](#deployment-guide) above.
 
 ### Deployment Checklist
 
 - [ ] Compile contract in release mode (debug logs disabled)
-- [ ] Verify upgrade delay is set to 24 hours
+- [ ] Verify upgrade delay is set appropriately for the target environment
 - [ ] Configure appropriate fee values for your use case
 - [ ] Add authorized signers for fee verification
 - [ ] Test all rate limiting scenarios
@@ -1258,10 +1262,10 @@ If upgrading from an older contract version:
 ## Troubleshooting
 
 ### "Rate limit exceeded" Error
-**Solution**: Wait for the rate limit window to reset (up to 1 hour) or check remaining mints with `get_remaining_mints`.
+**Solution**: Wait for the rate limit window to reset (up to 2 hours) or check remaining mints with `get_remaining_mints`.
 
 ### "Upgrade delay period has not passed" Error
-**Solution**: Wait for the full 24-hour delay period before calling `finalize_upgrade`.
+**Solution**: Wait for the full configured delay period before calling `finalize_upgrade`. Check remaining time with `get_upgrade_status`.
 
 ### "Only the contract owner can call this function" Error
 **Solution**: Fee management and upgrade functions can only be called by the contract owner account.
@@ -1311,7 +1315,7 @@ This contract uses a compact facial `token_id` encoding for each minted token. T
 ### Character Sets
 
 Alternating character sets (no vowels or ambiguous letters):
-- **CHARSET_EVEN**: `b, c, a, e, u, g` (6 chars) — positions 0, 2, 4, 6, 8, 10
+- **CHARSET_EVEN**: `b, c, l, s, z, g` (6 chars) — positions 0, 2, 4, 6, 8, 10
 - **CHARSET_ODD**: `d, f, h, j, k, m, n, p, q, r, t, v, w, x, y` (15 chars) — positions 1, 3, 5, 7, 9, 11 (checksum)
 
 ### Encoding rules
@@ -1340,14 +1344,15 @@ Categories are ordered by value count to optimize charset usage:
 9. `skin_tones`  
 10. `nose`  
 
-### `overall_structure` (position 0, 2 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `overall_structure` (position 0, 3 values, uses CHARSET_EVEN: b,c,l,s,z,g)
 
-| Index | Letter | Value      |
-|-------|--------|------------|
-| 0     | b      | masculine  |
-| 1     | c      | feminine   |
+| Index | Letter | Value        |
+|-------|--------|--------------|
+| 0     | b      | masculine    |
+| 1     | c      | feminine     |
+| 2     | l      | androgynous  |
 
-### `face_shape` (position 1, 15 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+### `face_shape` (position 1, 7 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
 | Index | Letter | Value                 |
 |-------|--------|-----------------------|
@@ -1357,25 +1362,16 @@ Categories are ordered by value count to optimize charset usage:
 | 3     | j      | rectangular-faced     |
 | 4     | k      | heart-shaped-face     |
 | 5     | m      | diamond-shaped-face   |
-| 6     | n      | triangular-faced      |
-| 7     | p      | pear-shaped-face      |
-| 8     | q      | narrow-faced          |
-| 9     | r      | wide-faced            |
-| 10    | t      | angular-faced         |
-| 11    | v      | curved-faced          |
-| 12    | w      | asymmetrical-faced    |
-| 13    | x      | elongated-faced       |
-| 14    | y      | compact-faced         |
+| 6     | n      | pear-shaped-face      |
 
-### `age_related` (position 2, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `age_related` (position 2, 4 values, uses CHARSET_EVEN: b,c,l,s,z,g)
 
-| Index | Letter | Value            |
-|-------|--------|------------------|
-| 0     | b      | teenage-person   |
-| 1     | c      | young-adult-25   |
-| 2     | a      | middle-aged-50   |
-| 3     | e      | senior-65        |
-| 4     | u      | elderly-person   |
+| Index | Letter | Value        |
+|-------|--------|--------------|
+| 0     | b      | teenage      |
+| 1     | c      | young-adult  |
+| 2     | l      | middle-aged  |
+| 3     | s      | senior       |
 
 ### `regional_bone_structure` (position 3, 12 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
@@ -1391,99 +1387,89 @@ Categories are ordered by value count to optimize charset usage:
 | 7     | p      | East-African     |
 | 8     | q      | Native-American  |
 | 9     | r      | Polynesian       |
-| 10    | t      | Celtic-features  |
-| 11    | v      | Turkish          |
+| 10    | t      | Middle-Eastern   |
+| 11    | v      | Central-Asian    |
 
-### `lips` (position 4, 5 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `lips` (position 4, 5 values, uses CHARSET_EVEN: b,c,l,s,z,g)
 
 | Index | Letter | Value           |
 |-------|--------|-----------------|
 | 0     | b      | thin-lips       |
 | 1     | c      | full-lips       |
-| 2     | a      | pouty-lips      |
-| 3     | e      | defined-lips    |
-| 4     | u      | bow-shaped-lips |
+| 2     | l      | bow-shaped-lips |
+| 3     | s      | wide-lips       |
+| 4     | z      | downturned-lips |
 
-### `hair_color` (position 5, 12 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
+### `hair_color` (position 5, 8 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
-| Index | Letter | Value                 |
-|-------|--------|-----------------------|
-| 0     | d      | black-hair            |
-| 1     | f      | dark-brown-hair       |
-| 2     | h      | brown-hair            |
-| 3     | j      | light-brown-hair      |
-| 4     | k      | blonde-hair           |
-| 5     | m      | platinum-blonde-hair  |
-| 6     | n      | red-hair              |
-| 7     | p      | auburn-hair           |
-| 8     | q      | gray-hair             |
-| 9     | r      | white-hair            |
-| 10    | t      | silver-hair           |
-| 11    | v      | bald                  |
+| Index | Letter | Value        |
+|-------|--------|--------------|
+| 0     | d      | black-hair   |
+| 1     | f      | brown-hair   |
+| 2     | h      | auburn-hair  |
+| 3     | j      | red-hair     |
+| 4     | k      | blonde-hair  |
+| 5     | m      | gray-hair    |
+| 6     | n      | white-hair   |
+| 7     | p      | bald         |
 
-### `eyebrow_style` (position 6, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `eyebrow_style` (position 6, 5 values, uses CHARSET_EVEN: b,c,l,s,z,g)
 
 | Index | Letter | Value             |
 |-------|--------|-------------------|
 | 0     | b      | thick-eyebrows    |
 | 1     | c      | thin-eyebrows     |
-| 2     | a      | arched-eyebrows   |
-| 3     | e      | straight-eyebrows |
-| 4     | u      | bushy-eyebrows    |
-| 5     | g      | sparse-eyebrows   |
+| 2     | l      | arched-eyebrows   |
+| 3     | s      | straight-eyebrows |
+| 4     | z      | unibrow           |
 
 ### `eyes` (position 7, 10 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
 | Index | Letter | Value               |
 |-------|--------|---------------------|
-| 0     | d      | small-eyes          |
-| 1     | f      | large-eyes          |
-| 2     | h      | deep-set-eyes       |
-| 3     | j      | prominent-eyes      |
-| 4     | k      | close-set-eyes      |
-| 5     | m      | wide-set-eyes       |
-| 6     | n      | almond-shaped-eyes  |
-| 7     | p      | upturned-eyes       |
-| 8     | q      | downturned-eyes     |
-| 9     | r      | monolid-eyes        |
+| 0     | d      | deep-set-eyes       |
+| 1     | f      | prominent-eyes      |
+| 2     | h      | close-set-eyes      |
+| 3     | j      | wide-set-eyes       |
+| 4     | k      | almond-shaped-eyes  |
+| 5     | m      | upturned-eyes       |
+| 6     | n      | downturned-eyes     |
+| 7     | p      | monolid-eyes        |
+| 8     | q      | hooded-eyes         |
+| 9     | r      | round-eyes          |
 
-### `skin_conditions` (position 8, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `skin_conditions` (position 8, 5 values, uses CHARSET_EVEN: b,c,l,s,z,g)
 
-| Index | Letter | Value    |
-|-------|--------|----------|
-| 0     | b      | freckled |
-| 1     | c      | spotted  |
-| 2     | a      | scarred  |
-| 3     | e      | lined    |
-| 4     | u      | wrinkled |
-| 5     | g      | clear    |
+| Index | Letter | Value      |
+|-------|--------|------------|
+| 0     | b      | freckled   |
+| 1     | c      | scarred    |
+| 2     | l      | wrinkled   |
+| 3     | s      | clear      |
+| 4     | z      | pockmarked |
 
-### `skin_tones` (position 9, 11 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
-
-| Index | Letter | Value               |
-|-------|--------|---------------------|
-| 0     | d      | pale-skinned        |
-| 1     | f      | fair-skinned        |
-| 2     | h      | medium-skinned      |
-| 3     | j      | tan-skinned         |
-| 4     | k      | olive-skinned       |
-| 5     | m      | dark-skinned        |
-| 6     | n      | ebony-skinned       |
-| 7     | p      | ivory-skinned       |
-| 8     | q      | peach-toned-skin    |
-| 9     | r      | rosy-skinned        |
-| 10    | t      | red-toned-skin      |
-
-### `nose` (position 10, 6 values, uses CHARSET_EVEN: b,c,a,e,u,g)
+### `skin_tones` (position 9, 7 values, uses CHARSET_ODD: d,f,h,j,k,m,n,p,q,r,t,v,w,x,y)
 
 | Index | Letter | Value          |
 |-------|--------|----------------|
-| 0     | b      | aquiline-nose  |
-| 1     | c      | button-nose    |
-| 2     | a      | Roman-nose     |
-| 3     | e      | snub-nose      |
-| 4     | u      | flared-nose    |
-| 5     | g      | pinched-nose   |
+| 0     | d      | fair-skinned   |
+| 1     | f      | golden-skinned |
+| 2     | h      | olive-skinned  |
+| 3     | j      | bronze-skinned |
+| 4     | k      | brown-skinned  |
+| 5     | m      | dark-skinned   |
+| 6     | n      | ruddy-skinned  |
+
+### `nose` (position 10, 6 values, uses CHARSET_EVEN: b,c,l,s,z,g)
+
+| Index | Letter | Value            |
+|-------|--------|------------------|
+| 0     | b      | straight-nose    |
+| 1     | c      | aquiline-nose    |
+| 2     | l      | upturned-nose    |
+| 3     | s      | bulbous-nose     |
+| 4     | z      | flat-bridged-nose|
+| 5     | g      | pinched-nose     |
 
 ---
 
@@ -1498,7 +1484,7 @@ Categories are ordered by value count to optimize charset usage:
 - Ensure `account.env` is in `.gitignore`
 
 #### 2. **Deployment Security**
-- Review `DEPLOYMENT_CHECKLIST.md` before each deployment
+- Review the [Deployment Checklist](#deployment-checklist) before each deployment
 - Test all changes on testnet first
 - Use `./monitor_contract.sh` to verify deployment
 - Document all configuration changes
@@ -1510,7 +1496,7 @@ Categories are ordered by value count to optimize charset usage:
 - Have emergency response plan ready
 
 #### 4. **Emergency Procedures**
-- Pause contract if issues detected: `./emergency_pause.sh [account] [network] pause`
+- Pause contract if issues detected: call `pause_contract` with 1 yoctoNEAR deposit
 - Remove compromised signers immediately
 - Document all security incidents
 - Notify users of security-related changes
@@ -1521,26 +1507,26 @@ Categories are ordered by value count to optimize charset usage:
 |--------|---------|-------|
 | `secure_credentials.sh` | Set proper permissions on credential files | `./secure_credentials.sh` |
 | `monitor_contract.sh` | Check contract status and configuration | `./monitor_contract.sh [account] [network]` |
-| `emergency_pause.sh` | Emergency pause/resume contract | `./emergency_pause.sh [account] [network] [action]` |
 
-### Security Documentation
+### Security Documentation (Planned)
 
-- **`SECURITY.md`**: Complete security policy and vulnerability reporting
-- **`DEPLOYMENT_CHECKLIST.md`**: Pre-deployment security checklist
-- **`AUTHORIZED_SIGNERS.md`**: Current authorized signers and management
+> The following documents are planned but not yet created:
+> - `SECURITY.md`: Responsible disclosure policy and vulnerability reporting
+> - `DEPLOYMENT_CHECKLIST.md`: Pre-deployment security checklist
+> - `AUTHORIZED_SIGNERS.md`: Signer management guide
 
 ### Key Security Features
 
 1. **Access Control**: Owner-only admin functions with 1 yoctoNEAR protection
-2. **Rate Limiting**: 100 mints per hour per account
+2. **Rate Limiting**: 200 mints per 2-hour window per account
 3. **Signature Verification**: Ed25519 signatures bound to parameters
-4. **Time-Locked Upgrades**: 24-hour delay for mainnet upgrades
+4. **Time-Locked Upgrades**: Configurable delay (default 24 hours, adjustable via `set_upgrade_delay`)
 5. **Arithmetic Safety**: All operations use checked math
 6. **Reentrancy Protection**: Checks-effects-interactions pattern
 
 ### Reporting Security Issues
 
-**DO NOT** open public issues for security vulnerabilities. See `SECURITY.md` for responsible disclosure process.
+**DO NOT** open public issues for security vulnerabilities. Contact **rodit@identityclaw.com** for responsible disclosure.
 
 ---
 

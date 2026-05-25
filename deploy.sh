@@ -21,6 +21,20 @@ set -e  # Exit on any error
 
 VERSION="1.0.0"
 
+# Derive contract name and wasm path from project files so there is only
+# one place to update (account.env / Cargo.toml).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "$SCRIPT_DIR/account.env" ]; then
+  # shellcheck source=account.env
+  source "$SCRIPT_DIR/account.env"
+fi
+DEFAULT_ACCOUNT="${CONTRACT_NAME:-}"
+
+# Wasm artifact name: Cargo turns hyphens into underscores.
+CARGO_PKG_NAME=$(grep '^name' "$SCRIPT_DIR/Cargo.toml" | head -1 | sed 's/.*= *"//;s/"//')
+WASM_FILE="./target/near/${CARGO_PKG_NAME//-/_}.wasm"
+
 add_custom_network_connection() {
   local connection_name="$NETWORK"
   local rpc_url="$CUSTOM_RPC_URL"
@@ -139,6 +153,7 @@ verify_contract() {
 }
 
 print_help() {
+  local acct="${DEFAULT_ACCOUNT:-<account_id>.near}"
   cat <<EOF
 RODIT Contract Deployment & Signer Management Script v${VERSION}
 ================================================================
@@ -163,12 +178,13 @@ COMMANDS:
   status       Alias for verify.
 
 ARGUMENTS:
-  account_id   NEAR account ID that owns the contract (e.g., 2026v2-identyclaw-com.near)
+  account_id   NEAR account ID that owns the contract (e.g., ${acct})
   network      Optional network connection name (default: testnet)
   rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
   signerN      Authorized signer public keys to add (64 lowercase hex characters)
 
 NOTES:
+  • The default account comes from account.env (CONTRACT_NAME).
   • Authorized signers can also be added manually:
       near call <account_id> add_authorized_signer '{"public_key_hex":"<64-char-hex>"}' \
         --accountId <account_id> --networkId <network> --depositYocto 1
@@ -177,26 +193,26 @@ NOTES:
 
 EXAMPLES:
   1. Initial deployment to testnet (no custom RPC):
-       ./deploy.sh deploy 2026v2-identyclaw-com.near
+       ./deploy.sh deploy ${acct}
 
   2. Upgrade existing contract on mainnet:
-       ./deploy.sh deploy 2026v2-identyclaw-com.near mainnet
+       ./deploy.sh deploy ${acct} mainnet
 
   3. Deploy using a custom RPC endpoint:
-       ./deploy.sh deploy 2026v2-identyclaw-com.near mainnet-custom https://rpc.mainnet.near.org
+       ./deploy.sh deploy ${acct} mainnet-custom https://rpc.mainnet.near.org
 
   4. Add authorized signers on testnet (no custom RPC):
-       ./deploy.sh add-signers 2026v2-identyclaw-com.near testnet "" \
-         76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \
-         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \
+       ./deploy.sh add-signers ${acct} testnet "" \\
+         76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \\
+         43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \\
          3467c4e8f5b0445d474742f976d24ca1991d843f58d8b9aaf45e6b6b8ff6603a
 
   5. Add signers using default network (testnet) — network argument omitted:
-       ./deploy.sh add-signers 2026v2-identyclaw-com.near \
+       ./deploy.sh add-signers ${acct} \\
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
 
   6. Verify deployed contract state:
-       ./deploy.sh verify 2026v2-identyclaw-com.near mainnet
+       ./deploy.sh verify ${acct} mainnet
 
 EOF
 }
@@ -212,9 +228,9 @@ fi
 # Default values
 NETWORK="testnet"
 CUSTOM_RPC_URL=""
-UPGRADE_DELAY_SECONDS=30  # 1/2 minutes
-POLLING_INTERVAL=10  # Check status every 10 seconds
-BUFFER_SECONDS=10  # Add a small buffer to the delay time
+UPGRADE_DELAY_SECONDS=86400  # 24 hours
+POLLING_INTERVAL=300  # Check status every 5 minutes
+BUFFER_SECONDS=30  # Add a small buffer to the delay time
 # Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
 INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
 # FastNEAR RPC endpoints (recommended)
@@ -385,7 +401,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/
 
   # Step A: Upload code (this requires the account to have enough balance to cover code storage)
   echo "Initial deploy: uploading wasm ..."
-  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file ./target/near/contract_2026v2_identyclaw_com_near.wasm without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
+  if ! $NEAR_CLI contract deploy "$ACCOUNT_ID" use-file "$WASM_FILE" without-init-call network-config "$NETWORK" sign-with-legacy-keychain send; then
     echo "Error: Failed to deploy code."
     echo "Hint: Ensure the account $ACCOUNT_ID has enough NEAR to cover code storage (typically ~1 NEAR on testnet)."
     exit 1
@@ -486,7 +502,7 @@ echo
 
 # Step 5: Deploy the updated contract
 echo "Step 5: Deploying updated contract..."
-$NEAR_CLI contract deploy $ACCOUNT_ID use-file ./target/near/contract_2026v2_identyclaw_com_near.wasm with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
+$NEAR_CLI contract deploy $ACCOUNT_ID use-file "$WASM_FILE" with-init-call upgrade json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' network-config $NETWORK sign-with-legacy-keychain send
 if [ $? -ne 0 ]; then
   echo "Error: Failed to deploy contract"
   exit 1

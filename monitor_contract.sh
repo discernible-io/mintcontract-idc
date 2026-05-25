@@ -5,8 +5,14 @@
 
 set -e
 
-# Default values
-ACCOUNT_ID=${1:-"2026v2-identyclaw-com.near"}
+# Source account.env for the default contract name
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/account.env" ]; then
+  # shellcheck source=account.env
+  source "$SCRIPT_DIR/account.env"
+fi
+
+ACCOUNT_ID=${1:-"${CONTRACT_NAME:-genaaaa-identyclaw-com.near}"}
 NETWORK=${2:-"mainnet"}
 
 NEAR_CLI=$(which near 2>/dev/null || echo "")

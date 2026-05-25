@@ -3,13 +3,11 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use crate::ContractStatus;
 use crate::events::emit_contract_status_change;
 
-/// Default upgrade delay period in seconds
-/// Set to 30 seconds for testing/development
-/// For production, consider using 86400 (24 hours) for safety
-pub const DEFAULT_UPGRADE_DELAY_SECONDS: u64 = 30;
+/// Default upgrade delay period in seconds (24 hours).
+pub const DEFAULT_UPGRADE_DELAY_SECONDS: u64 = 86_400;
 
-/// Minimum allowed upgrade delay (30 seconds)
-pub const MIN_UPGRADE_DELAY_SECONDS: u64 = 30;
+/// Minimum allowed upgrade delay (24 hours).
+pub const MIN_UPGRADE_DELAY_SECONDS: u64 = 86_400;
 
 /// Handles contract upgrade process
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -94,7 +92,7 @@ impl ContractUpgrade {
     pub fn set_upgrade_delay(&mut self, new_delay: u64) {
         require!(
             new_delay >= MIN_UPGRADE_DELAY_SECONDS, 
-            format!("Upgrade delay must be at least {} seconds (1 minute)", MIN_UPGRADE_DELAY_SECONDS)
+            format!("Upgrade delay must be at least {} seconds (24 hours)", MIN_UPGRADE_DELAY_SECONDS)
         );
         self.upgrade_delay = new_delay;
     }

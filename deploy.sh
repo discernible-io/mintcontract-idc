@@ -14,6 +14,10 @@
 #   verify|status <account_id> [network] [rpc_url]
 #       Calls read-only contract methods to verify deployed contract state
 #
+#   burn-tokens <account_id> [network] [rpc_url] [keep_count]
+#       Burns all rodit tokens except the last N minted (default: 2).
+#       Requires contract owner credentials (rodit_burn is owner-only).
+#
 #   help | --help | -h
 #       Displays detailed usage information
 
@@ -152,6 +156,122 @@ verify_contract() {
   echo "Contract verification completed successfully."
 }
 
+extract_near_json() {
+  sed -n '/^Function execution return value/,$p' | tail -n +2 | sed '/^Here is your console command/,$d' | sed 's/\x1b\[[0-9;]*m//g'
+}
+
+fetch_all_token_ids() {
+  local from_index=0
+  local page_size=50
+  local token_ids=()
+  local raw_output page_json token_count i token_id
+
+  while true; do
+    if ! raw_output=$($NEAR_CLI view "$ACCOUNT_ID" rodit_tokens \
+      "{\"from_index\":\"$from_index\",\"limit\":$page_size}" \
+      --network-id "$NETWORK" 2>&1); then
+      echo "ERROR: Failed to fetch tokens at index $from_index" >&2
+      echo "$raw_output" >&2
+      return 1
+    fi
+
+    page_json=$(echo "$raw_output" | extract_near_json)
+
+    token_count=$(echo "$page_json" | jq 'length' 2>/dev/null || echo "0")
+    if [ "$token_count" -eq 0 ]; then
+      break
+    fi
+
+    for ((i = 0; i < token_count; i++)); do
+      token_id=$(echo "$page_json" | jq -r ".[$i].token_id")
+      token_ids+=("$token_id")
+    done
+
+    if [ "$token_count" -lt "$page_size" ]; then
+      break
+    fi
+    from_index=$((from_index + page_size))
+  done
+
+  printf '%s\n' "${token_ids[@]}"
+}
+
+burn_tokens_except_last() {
+  local keep_count="${1:-2}"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required for burn-tokens command"
+    exit 1
+  fi
+
+  if ! [[ "$keep_count" =~ ^[0-9]+$ ]]; then
+    echo "Error: keep_count must be a non-negative integer (got '$keep_count')"
+    exit 1
+  fi
+
+  echo "=== Burn RODIT Tokens ==="
+  echo "Account ID: $ACCOUNT_ID"
+  echo "Network Connection: $NETWORK"
+  echo "Keeping last $keep_count token(s)"
+  echo ""
+
+  local all_tokens=()
+  while IFS= read -r line; do
+    [ -n "$line" ] && all_tokens+=("$line")
+  done < <(fetch_all_token_ids)
+
+  local total=${#all_tokens[@]}
+  echo "Total tokens on contract: $total"
+
+  if [ "$total" -le "$keep_count" ]; then
+    echo "Nothing to burn (total <= keep_count)."
+    return 0
+  fi
+
+  local burn_count=$((total - keep_count))
+  local tokens_to_burn=("${all_tokens[@]:0:burn_count}")
+  local tokens_to_keep=("${all_tokens[@]: -keep_count}")
+
+  echo "Tokens to keep:"
+  for token_id in "${tokens_to_keep[@]}"; do
+    echo "  ✓ $token_id"
+  done
+  echo ""
+  echo "Tokens to burn ($burn_count):"
+  for token_id in "${tokens_to_burn[@]}"; do
+    echo "  ✗ $token_id"
+  done
+  echo ""
+
+  local burned=0 failed=0
+  for token_id in "${tokens_to_burn[@]}"; do
+    echo "Burning: $token_id"
+    local args
+    args=$(jq -nc --arg token_id "$token_id" '{token_id: $token_id}')
+    if $NEAR_CLI call "$ACCOUNT_ID" rodit_burn "$args" \
+      --use-account "$ACCOUNT_ID" \
+      --network-id "$NETWORK" \
+      --gas 100000000000000 \
+      --depositYocto 1; then
+      echo "✓ Burned successfully"
+      burned=$((burned + 1))
+    else
+      echo "✗ Failed to burn $token_id"
+      failed=$((failed + 1))
+    fi
+    echo ""
+  done
+
+  echo "=== Burn Summary ==="
+  echo "Burned: $burned"
+  echo "Failed: $failed"
+  echo "Kept:   $keep_count"
+
+  if [ "$failed" -gt 0 ]; then
+    return 1
+  fi
+}
+
 print_help() {
   local acct="${DEFAULT_ACCOUNT:-<account_id>.near}"
   cat <<EOF
@@ -163,6 +283,7 @@ USAGE:
   ./deploy.sh deploy <account_id> [network] [rpc_url]
   ./deploy.sh add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
   ./deploy.sh verify|status <account_id> [network] [rpc_url]
+  ./deploy.sh burn-tokens <account_id> [network] [rpc_url] [keep_count]
 
 COMMANDS:
   deploy       Build and deploy/upgrade the contract code for the specified account.
@@ -177,11 +298,15 @@ COMMANDS:
   verify       Calls read-only contract methods to verify deployed contract state.
   status       Alias for verify.
 
+  burn-tokens  Burns all rodit tokens except the last N minted (default: 2).
+               Uses rodit_tokens pagination and rodit_burn (contract owner only).
+
 ARGUMENTS:
   account_id   NEAR account ID that owns the contract (e.g., ${acct})
   network      Optional network connection name (default: testnet)
   rpc_url      Optional custom RPC endpoint URL (pass "" to skip)
   signerN      Authorized signer public keys to add (64 lowercase hex characters)
+  keep_count   Number of most recently minted tokens to retain (default: 2)
 
 NOTES:
   • The default account comes from account.env (CONTRACT_NAME).
@@ -214,8 +339,13 @@ EXAMPLES:
   6. Verify deployed contract state:
        ./deploy.sh verify ${acct} mainnet
 
+  7. Burn all tokens except the last two minted:
+       ./deploy.sh burn-tokens ${acct} mainnet
+
 EOF
 }
+
+KEEP_COUNT=2
 
 # Detect NEAR CLI command
 NEAR_CLI="near"
@@ -318,6 +448,34 @@ case "$COMMAND" in
       echo "Warning: Extra arguments ignored for $COMMAND command: $@"
     fi
     ;;
+  "burn-tokens")
+    if [ -z "$1" ]; then
+      echo "Error: account_id is required for burn-tokens command"
+      echo "Run './deploy.sh help' for usage information."
+      exit 1
+    fi
+    ACCOUNT_ID=$1
+    shift
+
+    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9]+$ ]]; then
+      NETWORK=$1
+      shift
+    fi
+
+    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9]+$ ]]; then
+      CUSTOM_RPC_URL=$1
+      shift
+    fi
+
+    if [ -n "$1" ] && [[ $1 =~ ^[0-9]+$ ]]; then
+      KEEP_COUNT=$1
+      shift
+    fi
+
+    if [ $# -gt 0 ]; then
+      echo "Warning: Extra arguments ignored for burn-tokens command: $@"
+    fi
+    ;;
   *)
     echo "Error: Unknown command '$COMMAND'"
     echo "Run './deploy.sh help' for usage information."
@@ -349,6 +507,11 @@ fi
 if [ "$COMMAND" = "verify" ] || [ "$COMMAND" = "status" ]; then
   verify_contract
   exit 0
+fi
+
+if [ "$COMMAND" = "burn-tokens" ]; then
+  burn_tokens_except_last "$KEEP_COUNT"
+  exit $?
 fi
 
 echo "=== Contract Update Process ==="

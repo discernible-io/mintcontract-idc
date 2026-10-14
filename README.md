@@ -246,7 +246,7 @@ near call your-account.near add_authorized_signer \
 ```bash
 # Set initialization fee (in yoctoNEAR)
 near call your-account.near set_initialize_fee \
-  '{"new_fee":"100000000000000000000"}' \
+  '{"new_fee":"50000000000000000000000"}' \
   --use-account your-account.near \
   --network-id mainnet-fastnear \
   --gas 100000000000000 \
@@ -438,7 +438,7 @@ Defined in `src/lib.rs`:
 
 - `RODIT_METADATA_SPEC`: `"Discernible-genaaaa-identyclaw-com-20260427"` - Contract version
 - `CONTRACT_NAME`: `"genaaaa-identyclaw-com"` - Issuer identifier
-- `DEFAULT_INITIALIZE_FEE`: 0.0001 NEAR - Default initialization fee
+- `DEFAULT_INITIALIZE_FEE`: 0.05 NEAR - Default initialization fee (covers one transfer + gas)
 - `DEFAULT_CONTRACT_FEE_PERCENTAGE`: 1% - Default contract fee
 - `RATE_LIMIT_WINDOW`: 7200 seconds (2 hours)
 - `MAX_MINTS_PER_WINDOW`: 200 mints per account per 2-hour window
@@ -920,7 +920,7 @@ pub struct ContractFees {
 
 When the contract is deployed via `init()`, these defaults are set:
 
-- **`initialize_fee`**: 0.0001 NEAR (100,000,000,000,000,000,000 yoctoNEAR)
+- **`initialize_fee`**: 0.05 NEAR (50,000,000,000,000,000,000,000 yoctoNEAR)
 - **`contract_fee_percentage`**: 1%
 - **`storage_cost_per_byte`**: 0.00001 NEAR per byte
 
@@ -991,9 +991,9 @@ When someone calls `rodit_mint()`, the `handle_account_fees_and_storage()` funct
 ```
 Total deposit: 1.0 NEAR
 - Storage cost: 0.05 NEAR (based on token size)
-- Initialize fee: 0.0001 NEAR (configurable)
-- Contract fee: 0.00949 NEAR (1% of 0.949 NEAR remaining)
-- Provider fee: 0.94041 NEAR (remainder)
+- Initialize fee: 0.05 NEAR (configurable; covers one transfer + gas)
+- Contract fee: 0.009 NEAR (1% of 0.9 NEAR remaining)
+- Provider fee: 0.891 NEAR (remainder)
 ```
 
 ### 6. Security Features
@@ -1033,7 +1033,7 @@ The fee system includes multiple security protections:
 
 #### Set Initialize Fee
 ```bash
-near call <contract_id> set_initialize_fee '{"new_fee": "100000000000000000000"}' --accountId <owner_account>
+near call <contract_id> set_initialize_fee '{"new_fee": "50000000000000000000000"}' --accountId <owner_account>
 ```
 **Range**: 0.00001 NEAR to 1 NEAR (in yoctoNEAR)
 

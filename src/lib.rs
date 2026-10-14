@@ -53,7 +53,7 @@ pub const RODIT_STANDARD_NAME: &str = "PENDING nepXXX";
 pub const CONTRACT_NAME: &str = env!("CONTRACT_ACCOUNT_NAME");
 
 // Default fee values - can be overridden by contract owner
-pub const DEFAULT_INITIALIZE_FEE: u128 = 100_000_000_000_000_000_000; // 0.0001 NEAR
+pub const DEFAULT_INITIALIZE_FEE: u128 = 50_000_000_000_000_000_000_000; // 0.05 NEAR
 pub const DEFAULT_CONTRACT_FEE_PERCENTAGE: u128 = 1; // 1%
 pub const DEFAULT_STORAGE_COST_PER_BYTE: u128 = 10_000_000_000_000_000_000; // 0.00001 NEAR per byte (NEAR standard)
 

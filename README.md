@@ -1031,6 +1031,19 @@ The fee system includes multiple security protections:
 
 ## API Reference
 
+Machine-readable **NEAR ABI** (Swagger-equivalent for this contract) and a generated method index:
+
+- [`docs/CONTRACT_API.md`](docs/CONTRACT_API.md) — human-readable call/view methods and types
+- [`docs/contract-abi.json`](docs/contract-abi.json) — NEAR ABI JSON Schema
+
+Regenerate after changing public methods or types:
+
+```bash
+./scripts/generate-contract-api.sh
+```
+
+Deploy builds may still use `--no-abi` so the on-chain WASM stays lean; ABI docs are a separate artifact.
+
 ### Fee Management Functions
 
 #### Set Initialize Fee

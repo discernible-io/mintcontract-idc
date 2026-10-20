@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const abiPath = resolve(root, process.argv[2] || "docs/contract-abi.json");
+const abiPath = resolve(root, process.argv[2] || "docs/abi-contract.json");
 const outPath = resolve(root, process.argv[3] || "docs/CONTRACT_API.md");
 
 const abi = JSON.parse(readFileSync(abiPath, "utf8"));
@@ -147,7 +147,7 @@ const out = [];
 out.push(`# Contract API Reference`);
 out.push("");
 out.push(
-  `> Generated from [\`contract-abi.json\`](./contract-abi.json) (NEAR ABI). Do not edit by hand — run \`scripts/generate-contract-api.sh\`.`
+  `> Generated from [\`abi-contract.json\`](./abi-contract.json) (NEAR ABI). Do not edit by hand — run \`scripts/generate-contract-api.sh\`.`
 );
 out.push("");
 out.push(`- **Package:** \`${pkg}\`${version ? ` \`${version}\`` : ""}`);

@@ -51,3 +51,7 @@ local.config.json
 # Optional: Documentation build output
 /docs/_build
 /docs
+# CodeCome audit: keep reports visible; hide exploit PoCs / captures / symlinks
+security-audit/**/exploits
+security-audit/**/evidence-codecome
+security-audit/**/evidence/output.txt

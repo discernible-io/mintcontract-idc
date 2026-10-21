@@ -24,7 +24,7 @@ Scope reviewed in this repository:
 
 - Contract code under `src/`
 - Operator scripts: `deploy.sh`, `monitor_contract.sh`, `secure_credentials.sh`, `list_authorized_signers.sh`
-- GitHub Actions workflow: `.github/workflows/deploy.yml` (tracked in git; deleted on disk but not yet committed as a removal)
+- GitHub Actions: no workflow is committed (`.github/` is absent from `HEAD`; removal of `deploy.yml` is already in history)
 - Repository documentation: `README.md`
 - Ignore and tracked-file posture: `.gitignore`, `Cargo.lock`, `account.env`
 
@@ -69,9 +69,11 @@ Why it matters:
 
 ## 3. Align `.gitignore` With Reproducible Rust Contract Builds
 
+**Status (2026-10-21):** Done. `.gitignore` does not list `Cargo.lock`. `Cargo.lock` stays tracked.
+
 Effort/risk: low effort, low implementation risk.
 
-`.gitignore` ignores `Cargo.lock`, but `Cargo.lock` is currently tracked. For deployable Rust applications and smart contracts, keeping `Cargo.lock` committed is usually the safer reproducibility posture.
+For deployable Rust applications and smart contracts, keeping `Cargo.lock` committed is the safer reproducibility posture. That is the current tree.
 
 Recommended change:
 
@@ -129,14 +131,13 @@ Why it matters:
 
 Effort/risk: low to medium effort, low implementation risk.
 
-`README.md` contains several conflicts with the current source:
+`README.md` still conflicts with the tree in the points below. Rechecked 2026-10-21:
 
-- It says the upgrade delay is 24 hours in many places, while `src/upgrade.rs` defaults to 30 seconds.
-- It says the rate limit is 1 hour / 10 or 100 mints in later sections, while `src/lib.rs` uses 2 hours / 200 mints.
-- It documents facial token character sets and category values that differ from `src/token_validation.rs`.
-- It says `minting_permanently_disabled` uses `#[borsh(default)]`, but the current `Contract` field does not show that annotation.
-- It references non-existing operational docs and scripts.
-- It includes repeated or stale deployment instructions using different build outputs and NEAR CLI styles.
+- Upgrade delay and mint rate limit match the source: 24 hours (`86_400`) and 200 mints / 2 hours. README no longer claims a 30-second delay or a 1-hour window.
+- README no longer says `minting_permanently_disabled` uses `#[borsh(default)]`.
+- Facial token character sets and category values may still differ from `src/token_validation.rs` (not re-audited line by line).
+- It references non-existing operational docs and scripts (`SECURITY.md`, `DEPLOYMENT_CHECKLIST.md`, `AUTHORIZED_SIGNERS.md`, `emergency_pause.sh`).
+- It includes repeated or stale deployment instructions using different build outputs and NEAR CLI styles (not re-audited line by line).
 
 Recommended change:
 
@@ -155,7 +156,7 @@ Why it matters:
 
 Effort/risk: medium effort, low to medium implementation risk.
 
-`.github/workflows/deploy.yml` (tracked in git; deleted on disk but not committed as a removal) currently auto-runs on pushes to `main`, uses older/unmaintained actions (`actions/checkout@v3`, `actions/cache@v3`, `actions-rs/toolchain@v1`), downloads tooling with `curl`, installs the npm `near-cli`, and writes one monolithic `${{ secrets.NEAR_CREDENTIALS }}` value to `~/.near-credentials/credentials.json`. The workflow has no secret-scanning gate, no supply-chain freshness check, no explicit `permissions` block, and runs build+deploy in a single job.
+No GitHub Actions workflow is in `HEAD` (`.github/` has no tracked files; the old `deploy.yml` removal is already committed). That removed workflow auto-ran on pushes to `main`, used older actions (`actions/checkout@v3`, `actions/cache@v3`, `actions-rs/toolchain@v1`), downloaded tooling with `curl`, installed the npm `near-cli`, and wrote one monolithic `${{ secrets.NEAR_CREDENTIALS }}` value to `~/.near-credentials/credentials.json`. It had no secret-scanning gate, no supply-chain freshness check, no explicit `permissions` block, and ran build+deploy in a single job. A replacement still needs those controls.
 
 Recommended change:
 
@@ -168,7 +169,7 @@ Recommended change:
 - Store credentials per environment/account instead of one broad `NEAR_CREDENTIALS` secret. Use per-branch secrets with `_MAIN` / `_DEVELOPMENT` suffixes per `vocabulary-standard.md`.
 - Clean up credential files at the end of the job (post-step or `always()` cleanup).
 - Add `--depositYocto 1` to calls such as `resume_contract` when the contract requires the 1 yocto guard.
-- Decide whether to commit or remove the `deploy.yml` deletion: the file is tracked in git but deleted on disk, which is ambiguous.
+- Add the replacement workflow in git. The old `deploy.yml` deletion is already committed; do not treat the working tree as an uncommitted removal.
 
 Why it matters:
 
@@ -179,9 +180,11 @@ Why it matters:
 
 ## 8. Make Mainnet Upgrade Delay Match The Security Claim
 
+**Status (2026-10-21):** Closed for the delay value. `DEFAULT_UPGRADE_DELAY_SECONDS` and `MIN_UPGRADE_DELAY_SECONDS` in `src/upgrade.rs` are `86_400`. `deploy.sh` sets `UPGRADE_DELAY_SECONDS=86400`. README describes the same 24-hour default.
+
 Effort/risk: medium effort, medium implementation risk.
 
-The contract and deployment scripts currently default to a 30-second upgrade delay. The README repeatedly claims 24-hour mainnet delay behavior. A 30-second delay is useful for development, but it is not the security review window described in the docs.
+Residual: `deploy.sh` still hardcodes that wait instead of reading `get_upgrade_status`.
 
 Recommended change:
 
@@ -319,7 +322,7 @@ The repository has no Gitleaks configuration or CI secret-scanning step. `accoun
 Recommended change:
 
 - Add a `.gitleaks.toml` at the repo root with narrow allowlists for documented non-secrets only (for example, contract account names that look like secrets but are public identifiers).
-- Add a Gitleaks step to the GitHub Actions workflow (or create a new workflow if `deploy.yml` is removed) that runs `gitleaks detect --source . --verbose --redact` after checkout and before any build step.
+- Add a Gitleaks step to a new GitHub Actions workflow (`deploy.yml` is already gone from `HEAD`) that runs `gitleaks detect --source . --verbose --redact` after checkout and before any build step.
 - Run Gitleaks locally before push as an early-feedback habit: `gitleaks detect --source . --verbose --redact`.
 - If Gitleaks finds real secrets in git history, rotate them and treat them as compromised even if the commit is reverted.
 
@@ -330,4 +333,4 @@ Why it matters:
 
 ## Verification Notes
 
-Static review was completed against the files listed above and updated against the latest `../docs` standards as of 2026-05-25. Standards that have significantly expanded since the original review include `cicd-deployment-standard.md` (Gitleaks, slim images, systemd linger, APP_DIR), `documentation-standard.md` (principles 12–16), `test-constitution.md` (SDK-first, protocol-sensitive, findings-first), and the addition of `planned-improvements.md`, `frontend-branch-env-migration.md`, and `signatures/`. I attempted to run `cargo test`, but the environment did not have `cargo` installed, so no local build/test result is included in this review.
+Static review was completed against the files listed above and updated against the latest `../docs` standards as of 2026-05-25. Rechecked 2026-10-21: items **3** and **8** (delay value) match the tree; item **6** no longer has the upgrade-delay, rate-limit, or `#[borsh(default)]` mismatches; item **7**'s workflow is absent from `HEAD` rather than an uncommitted deletion. Standards that have significantly expanded since the original review include `cicd-deployment-standard.md` (Gitleaks, slim images, systemd linger, APP_DIR), `documentation-standard.md` (principles 12–16), `test-constitution.md` (SDK-first, protocol-sensitive, findings-first), and the addition of `planned-improvements.md`, `frontend-branch-env-migration.md`, and `signatures/`. I attempted to run `cargo test`, but the environment did not have `cargo` installed, so no local build/test result is included in this review.

@@ -1522,13 +1522,17 @@ Categories are ordered by value count to optimize charset usage:
 |--------|---------|-------|
 | `secure_credentials.sh` | Set proper permissions on credential files | `./secure_credentials.sh` |
 | `monitor_contract.sh` | Check contract status and configuration | `./monitor_contract.sh [account] [network]` |
+| `list_authorized_signers.sh` | List on-chain fee-signer public keys | `./list_authorized_signers.sh [account] [network]` |
+| `emergency_pause.sh` | Pause minting immediately | `./emergency_pause.sh [account] [network]` |
 
-### Security Documentation (Planned)
+### Security Documentation
 
-> The following documents are planned but not yet created:
-> - `SECURITY.md`: Responsible disclosure policy and vulnerability reporting
-> - `DEPLOYMENT_CHECKLIST.md`: Pre-deployment security checklist
-> - `AUTHORIZED_SIGNERS.md`: Signer management guide
+| Document | Purpose |
+|----------|---------|
+| [`SECURITY.md`](SECURITY.md) | Responsible disclosure and vulnerability reporting |
+| [`DEPLOYMENT_CHECKLIST.md`](DEPLOYMENT_CHECKLIST.md) | Pre-deploy / upgrade operator checklist |
+| [`AUTHORIZED_SIGNERS.md`](AUTHORIZED_SIGNERS.md) | Signer management without private material |
+| [`emergency_pause.sh`](emergency_pause.sh) | Owner pause helper (`pause_contract` + 1 yocto) |
 
 ### Key Security Features
 

@@ -32,6 +32,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+account.env
 
 # Test artifacts
 /coverage

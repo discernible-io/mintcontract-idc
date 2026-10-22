@@ -1,0 +1,13 @@
+title = "mintcontract-idc gitleaks config"
+
+[allowlist]
+description = "Public contract identifiers that look secret-like but are not credentials"
+regexes = [
+  '''genaaaa-identyclaw-com\.near''',
+  '''2026v2-identyclaw-com\.near''',
+  '''identyclaw\.near''',
+]
+paths = [
+  '''(?i)AUTHORIZED_SIGNERS\.md$''',
+  '''(?i)SECURITY\.md$''',
+]

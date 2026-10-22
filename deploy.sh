@@ -21,17 +21,26 @@
 #   help | --help | -h
 #       Displays detailed usage information
 
-set -e  # Exit on any error
+set -euo pipefail
 
 VERSION="1.0.0"
 
 # Derive contract name and wasm path from project files so there is only
-# one place to update (account.env / Cargo.toml).
+# one place to update (local account.env / Cargo.toml).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -f "$SCRIPT_DIR/account.env" ]; then
-  # shellcheck source=account.env
-  source "$SCRIPT_DIR/account.env"
+if [[ -f "$SCRIPT_DIR/account.env" ]]; then
+  # Load only CONTRACT_NAME=value (do not eval arbitrary shell).
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      ''|\#*) continue ;;
+      CONTRACT_NAME=*)
+        CONTRACT_NAME="${line#CONTRACT_NAME=}"
+        CONTRACT_NAME="${CONTRACT_NAME%\"}"
+        CONTRACT_NAME="${CONTRACT_NAME#\"}"
+        ;;
+    esac
+  done < "$SCRIPT_DIR/account.env"
 fi
 DEFAULT_ACCOUNT="${CONTRACT_NAME:-}"
 
@@ -363,13 +372,10 @@ POLLING_INTERVAL=300  # Check status every 5 minutes
 BUFFER_SECONDS=30  # Add a small buffer to the delay time
 # Initial storage deposit for fresh accounts (can override via INIT_DEPOSIT env)
 INIT_DEPOSIT=${INIT_DEPOSIT:-"1 NEAR"}
-# FastNEAR RPC endpoints (recommended)
-FASTNEAR_MAINNET_RPC="https://free.rpc.fastnear.com/"
-FASTNEAR_TESTNET_RPC="https://free.rpc.fastnear.com/"
 
 AUTHORIZED_SIGNERS=()
 
-COMMAND=$1
+COMMAND="${1:-}"
 shift || true
 
 case "$COMMAND" in
@@ -378,7 +384,7 @@ case "$COMMAND" in
     exit 0
     ;;
   "deploy")
-    if [ -z "$1" ]; then
+    if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for deploy command"
       echo "Run './deploy.sh help' for usage information."
       exit 1
@@ -386,12 +392,12 @@ case "$COMMAND" in
     ACCOUNT_ID=$1
     shift
 
-    if [ -n "$1" ]; then
+    if [ -n "${1:-}" ]; then
       NETWORK=$1
       shift
     fi
 
-    if [ -n "$1" ]; then
+    if [ -n "${1:-}" ]; then
       CUSTOM_RPC_URL=$1
       shift
     fi
@@ -401,7 +407,7 @@ case "$COMMAND" in
     fi
     ;;
   "add-signers")
-    if [ -z "$1" ]; then
+    if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for add-signers command"
       echo "Run './deploy.sh help' for usage information."
       exit 1
@@ -409,12 +415,12 @@ case "$COMMAND" in
     ACCOUNT_ID=$1
     shift
 
-    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9a-f]{64}$ ]]; then
+    if [ -n "${1:-}" ] && [[ ! ${1:-} =~ ^[0-9a-f]{64}$ ]]; then
       NETWORK=$1
       shift
     fi
 
-    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9a-f]{64}$ ]]; then
+    if [ -n "${1:-}" ] && [[ ! ${1:-} =~ ^[0-9a-f]{64}$ ]]; then
       CUSTOM_RPC_URL=$1
       shift
     fi
@@ -426,7 +432,7 @@ case "$COMMAND" in
     fi
     ;;
   "verify"|"status")
-    if [ -z "$1" ]; then
+    if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for $COMMAND command"
       echo "Run './deploy.sh help' for usage information."
       exit 1
@@ -434,12 +440,12 @@ case "$COMMAND" in
     ACCOUNT_ID=$1
     shift
 
-    if [ -n "$1" ]; then
+    if [ -n "${1:-}" ]; then
       NETWORK=$1
       shift
     fi
 
-    if [ -n "$1" ]; then
+    if [ -n "${1:-}" ]; then
       CUSTOM_RPC_URL=$1
       shift
     fi
@@ -449,7 +455,7 @@ case "$COMMAND" in
     fi
     ;;
   "burn-tokens")
-    if [ -z "$1" ]; then
+    if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for burn-tokens command"
       echo "Run './deploy.sh help' for usage information."
       exit 1
@@ -457,17 +463,17 @@ case "$COMMAND" in
     ACCOUNT_ID=$1
     shift
 
-    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9]+$ ]]; then
+    if [ -n "${1:-}" ] && [[ ! ${1:-} =~ ^[0-9]+$ ]]; then
       NETWORK=$1
       shift
     fi
 
-    if [ -n "$1" ] && [[ ! $1 =~ ^[0-9]+$ ]]; then
+    if [ -n "${1:-}" ] && [[ ! ${1:-} =~ ^[0-9]+$ ]]; then
       CUSTOM_RPC_URL=$1
       shift
     fi
 
-    if [ -n "$1" ] && [[ $1 =~ ^[0-9]+$ ]]; then
+    if [ -n "${1:-}" ] && [[ ${1:-} =~ ^[0-9]+$ ]]; then
       KEEP_COUNT=$1
       shift
     fi
@@ -483,19 +489,23 @@ case "$COMMAND" in
     ;;
 esac
 
-# Configure custom RPC connection if provided, otherwise use FastNEAR by default
-if [ -z "$CUSTOM_RPC_URL" ]; then
-  # Use FastNEAR RPC by default
-  if [[ "$NETWORK" == "mainnet"* ]]; then
-    CUSTOM_RPC_URL="$FASTNEAR_MAINNET_RPC"
-    NETWORK="mainnet-fastnear"
-  elif [[ "$NETWORK" == "testnet"* ]]; then
-    CUSTOM_RPC_URL="$FASTNEAR_TESTNET_RPC"
-    NETWORK="testnet-fastnear"
-  fi
+# RPC selection must be auditable (allowed-fallback / rpc-configuration standards).
+# Prefer an explicit rpc_url argument, else NEAR_NETWORK_CONFIG, else the named
+# connection as given. Do not silently rewrite mainnet/testnet to FastNEAR.
+RPC_SELECTION_SOURCE="named-connection"
+if [[ -n "$CUSTOM_RPC_URL" ]]; then
+  RPC_SELECTION_SOURCE="cli-rpc-url"
+elif [[ -n "${NEAR_NETWORK_CONFIG:-}" ]]; then
+  NETWORK="$NEAR_NETWORK_CONFIG"
+  RPC_SELECTION_SOURCE="NEAR_NETWORK_CONFIG"
+elif [[ "$NETWORK" == "mainnet" || "$NETWORK" == "testnet" ]]; then
+  echo "RPC selection: using NEAR CLI connection '${NETWORK}' without rewriting to FastNEAR."
+  echo "Set NEAR_NETWORK_CONFIG=mainnet-fastnear|mainnet-lava|... or pass rpc_url to register a custom endpoint."
 fi
 
-if [ -n "$CUSTOM_RPC_URL" ]; then
+echo "RPC selection: source=${RPC_SELECTION_SOURCE} network=${NETWORK} custom_rpc=${CUSTOM_RPC_URL:-"(none)"}"
+
+if [[ -n "$CUSTOM_RPC_URL" ]]; then
   add_custom_network_connection
 fi
 

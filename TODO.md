@@ -30,9 +30,11 @@ Scope reviewed in this repository:
 
 ## 1. Stop Tracking Local Account Configuration
 
+**Status (2026-10-22):** Done. `account.env` is gitignored and removed from the index; local file may remain. `list_authorized_signers.sh` accepts an account argument / `CONTRACT_NAME` / optional local file. Rotate any historically exposed values separately.
+
 Effort/risk: very low effort, low implementation risk.
 
-`account.env` is tracked by git, while `README.md` and `secure_credentials.sh` both say local account configuration should be ignored. This conflicts with the configuration standard's separation between committed non-secret configuration and host/local secret material.
+`account.env` was tracked by git while `README.md` and `secure_credentials.sh` said local account configuration should be ignored.
 
 Recommended change:
 
@@ -48,9 +50,11 @@ Why it matters:
 
 ## 2. Add The Missing Security And Operations Documents Referenced By README
 
+**Status (2026-10-22):** Done. Added `SECURITY.md`, `DEPLOYMENT_CHECKLIST.md`, `AUTHORIZED_SIGNERS.md`, and `emergency_pause.sh`; README indexes them.
+
 Effort/risk: low effort, low implementation risk.
 
-`README.md` references `SECURITY.md`, `DEPLOYMENT_CHECKLIST.md`, `AUTHORIZED_SIGNERS.md`, and `emergency_pause.sh`, but those files do not exist in this repo.
+`README.md` previously referenced these files before they existed.
 
 Recommended change:
 
@@ -88,9 +92,9 @@ Why it matters:
 
 ## 4. Replace Ad Hoc Script Parsing With Safer Shell Patterns
 
-Effort/risk: low effort, low implementation risk.
+**Status (2026-10-22):** Partially done. `deploy.sh` and `list_authorized_signers.sh` use `set -euo pipefail`, quote variables, and load `CONTRACT_NAME` without sourcing arbitrary shell. Residual: prefer `near --output json` + `jq` where CLI supports it.
 
-`list_authorized_signers.sh` uses unguarded `source account.env` and parses CLI output with `grep` / `sed`. `deploy.sh` also performs CLI configuration checks with text parsing. These are small but avoidable reliability and injection risks.
+Effort/risk: low effort, low implementation risk.
 
 Recommended change:
 
@@ -107,9 +111,9 @@ Why it matters:
 
 ## 5. Make RPC Selection Explicit And Auditable
 
-Effort/risk: low effort, low implementation risk.
+**Status (2026-10-22):** Done for silent rewrite. `deploy.sh` no longer rewrites `mainnet`/`testnet` to FastNEAR; it logs `RPC selection` from cli-rpc-url, `NEAR_NETWORK_CONFIG`, or named connection.
 
-`deploy.sh` silently switches `mainnet` and `testnet` to FastNEAR-backed connection names when no custom RPC URL is supplied. The sibling RPC/fallback standards allow RPC fallback, but require the fallback path to be intentional and logged.
+Effort/risk: low effort, low implementation risk.
 
 `rpc-configuration.md` documents the `NEAR_NETWORK_CONFIG` environment variable and available network configs (`mainnet-lava`, `mainnet-fastnear`, etc.) for the `roditwallet.sh` script. The same explicit-selection pattern should apply to deploy-time RPC usage.
 
@@ -131,13 +135,12 @@ Why it matters:
 
 Effort/risk: low to medium effort, low implementation risk.
 
-`README.md` still conflicts with the tree in the points below. Rechecked 2026-10-21:
+**Status (2026-10-22):** Ops-doc references resolved (item **2**). Rechecked 2026-10-21/22:
 
-- Upgrade delay and mint rate limit match the source: 24 hours (`86_400`) and 200 mints / 2 hours. README no longer claims a 30-second delay or a 1-hour window.
+- Upgrade delay and mint rate limit match the source: 24 hours (`86_400`) and 200 mints / 2 hours.
 - README no longer says `minting_permanently_disabled` uses `#[borsh(default)]`.
 - Facial token character sets and category values may still differ from `src/token_validation.rs` (not re-audited line by line).
-- It references non-existing operational docs and scripts (`SECURITY.md`, `DEPLOYMENT_CHECKLIST.md`, `AUTHORIZED_SIGNERS.md`, `emergency_pause.sh`).
-- It includes repeated or stale deployment instructions using different build outputs and NEAR CLI styles (not re-audited line by line).
+- Repeated or stale deployment instructions using different build outputs and NEAR CLI styles may remain (not re-audited line by line).
 
 Recommended change:
 
@@ -315,9 +318,11 @@ Why it matters:
 
 ## 15. Add Secret Scanning With Gitleaks
 
+**Status (2026-10-22):** Done for a dedicated workflow. Root `.gitleaks.toml` and `.github/workflows/gitleaks.yml` (SHA-pinned actions) run on push/PR. Fold into a fuller deploy workflow when item **7** lands.
+
 Effort/risk: low effort, low implementation risk.
 
-The repository has no Gitleaks configuration or CI secret-scanning step. `account.env` is tracked with account identifiers, and credential material has historically been present in git history. `cicd-deployment-standard.md` now requires Gitleaks as a mandatory gate in `build-images` before any build, install, or deploy step.
+`account.env` is no longer tracked. Credential material may still exist in git history — rotate if exposed.
 
 Recommended change:
 

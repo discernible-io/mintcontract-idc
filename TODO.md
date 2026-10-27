@@ -339,3 +339,16 @@ Why it matters:
 ## Verification Notes
 
 Static review was completed against the files listed above and updated against the latest `../docs` standards as of 2026-05-25. Rechecked 2026-10-21: items **3** and **8** (delay value) match the tree; item **6** no longer has the upgrade-delay, rate-limit, or `#[borsh(default)]` mismatches; item **7**'s workflow is absent from `HEAD` rather than an uncommitted deletion. Standards that have significantly expanded since the original review include `cicd-deployment-standard.md` (Gitleaks, slim images, systemd linger, APP_DIR), `documentation-standard.md` (principles 12–16), `test-constitution.md` (SDK-first, protocol-sensitive, findings-first), and the addition of `planned-improvements.md`, `frontend-branch-env-migration.md`, and `signatures/`. I attempted to run `cargo test`, but the environment did not have `cargo` installed, so no local build/test result is included in this review.
+
+
+## Standards conformance gaps (host audit 2026-10-27)
+
+NEAR contract ([applicability matrix](../docs/docs/documentation-standard.md#applicability-matrix)). Cross-ref [`planned-improvements.md`](../docs/docs/planned-improvements.md) **15**.
+
+| Gap | Standard | Evidence / action |
+| --- | --- | --- |
+| Single build command | coding / configuration (contract binding) | `deploy.sh` (`cargo near build non-reproducible-wasm`) vs other documented/`wasm-opt` paths — pick one canonical command for CI + deploy (item **14**) |
+| Deploy manifest + logging binding | configuration / logging **PI 15** | One tier deploy manifest listing init args with `source`; deploy log lists each argument — still no proven reference recorded in docs |
+| README → standards | documentation | Weak/absent pointer to discernible-io/docs — add reference-only link |
+| Local `docs/` | distribution | Service docs present without cicd standard copy — OK if reference-only; do not invent a third standards tree |
+| Toolchain pin | coding | `rust-toolchain.toml` + `Cargo.lock` present — keep as the pattern; adopt fmt/clippy/`cargo deny` when CI expands beyond Gitleaks |

@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Pause the mint contract immediately (owner-only, 1 yoctoNEAR).
-# Usage: ./emergency_pause.sh <account_id> [network]
+# Usage: ./scripts/emergency_pause.sh <account_id> [network]
 # Network defaults to NEAR_NETWORK_CONFIG, then mainnet.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ACCOUNT_ID="${1:-}"
 NETWORK="${2:-${NEAR_NETWORK_CONFIG:-mainnet}}"
 
 if [[ -z "$ACCOUNT_ID" ]]; then
-  if [[ -f "$SCRIPT_DIR/account.env" ]]; then
+  if [[ -f "$REPO_ROOT/account.env" ]]; then
     # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/account.env"
+    source "$REPO_ROOT/account.env"
   fi
   ACCOUNT_ID="${CONTRACT_NAME:-}"
 fi

@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # List authorized fee-signer public keys for a RODiT mint contract.
-# Usage: ./list_authorized_signers.sh [account_id] [network]
+# Usage: ./scripts/list_authorized_signers.sh [account_id] [network]
 # account_id may also come from CONTRACT_NAME or a local (untracked) account.env.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ACCOUNT_ID="${1:-}"
 NETWORK="${2:-${NEAR_NETWORK_CONFIG:-mainnet}}"
 
 if [[ -z "$ACCOUNT_ID" ]]; then
   if [[ -n "${CONTRACT_NAME:-}" ]]; then
     ACCOUNT_ID="$CONTRACT_NAME"
-  elif [[ -f "$SCRIPT_DIR/account.env" ]]; then
+  elif [[ -f "$REPO_ROOT/account.env" ]]; then
     # Load only CONTRACT_NAME=value lines (no arbitrary shell from the file).
     while IFS= read -r line || [[ -n "$line" ]]; do
       case "$line" in
@@ -23,7 +24,7 @@ if [[ -z "$ACCOUNT_ID" ]]; then
           ACCOUNT_ID="${ACCOUNT_ID#\"}"
           ;;
       esac
-    done < "$SCRIPT_DIR/account.env"
+    done < "$REPO_ROOT/account.env"
   fi
 fi
 

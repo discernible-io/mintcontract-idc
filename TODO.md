@@ -50,7 +50,7 @@ Why it matters:
 
 ## 2. Add The Missing Security And Operations Documents Referenced By README
 
-**Status (2026-10-22):** Done. Added `SECURITY.md`, `DEPLOYMENT_CHECKLIST.md`, `AUTHORIZED_SIGNERS.md`, and `emergency_pause.sh`; README indexes them.
+**Status (2026-10-30):** Done. Responsible disclosure, the deployment checklist, and signer practice live in `README.md`. `emergency_pause.sh` lives in `scripts/`.
 
 Effort/risk: low effort, low implementation risk.
 
@@ -203,9 +203,9 @@ Why it matters:
 
 ## 9. Require `owneraccount_id` In Signed Fee Payloads
 
-Effort/risk: medium effort; **medium–high rollout risk** (coordinate SignPortal / signclient before or with contract upgrade). CodeCome **CC-0004** rates finding **HIGH** (CVSS 8.2, EXPLOITED on NEAR sandbox). Operator judgment: the mempool/race front-run is **hard for attackers to win**, so operational risk aligns with README “known low-risk gap” on likelihood; impact if won remains high (passport ownership hijack).
+Effort/risk: medium effort; **medium–high rollout risk** (coordinate SignPortal / signclient before or with contract upgrade). CodeCome **CC-0004** rates finding **HIGH** (CVSS 8.2, EXPLOITED on NEAR sandbox). Operator judgment: the mempool/race front-run is **hard for attackers to win**, so likelihood is low; impact if won remains high (passport ownership hijack).
 
-`rodit_mint` validates `owneraccount_id` only if it is present in `fee_data_json`. Production-shaped fee JSON signs `{token_id, mintingfee, mintingfeeaccount}` only, so an intercepted fee signature *could* be front-run with a different `owneraccount_id`. Local audit package: `security-audit/CC-0004/` (gitignored; harness under `~/CodeCome`).
+`rodit_mint` validates `owneraccount_id` only if it is present in `fee_data_json`. Production-shaped fee JSON signs `{token_id, mintingfee, mintingfeeaccount}` only, so an intercepted fee signature *could* be front-run with a different `owneraccount_id`.
 
 Recommended change:
 

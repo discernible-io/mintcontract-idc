@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Regenerate NEAR ABI + human Markdown API reference under docs/.
+# Regenerate the NEAR ABI JSON under docs/.
 #
 # Usage (from repo root):
 #   ./scripts/generate-contract-api.sh
 #
-# Requires: cargo-near, Node.js (for Markdown render)
+# Requires: cargo-near
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,7 +24,4 @@ elif [[ ! -f docs/abi-contract.json ]]; then
   exit 1
 fi
 
-echo "→ Rendering docs/CONTRACT_API.md..."
-node scripts/abi-to-markdown.mjs docs/abi-contract.json docs/CONTRACT_API.md
-
-echo "✓ Wrote docs/abi-contract.json and docs/CONTRACT_API.md"
+echo "✓ Wrote docs/abi-contract.json"

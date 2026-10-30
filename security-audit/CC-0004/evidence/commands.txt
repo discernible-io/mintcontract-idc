@@ -1,9 +1,0 @@
-# CC-0004 validation commands (2026-10-20)
-
-cd /home/dedalo47/CodeCome/src/mintcontract-idc && CONTRACT_NAME=test.near cargo test --lib
-
-cd /home/dedalo47/CodeCome && node sandbox/validation/CC-0004/validate_owner_redirect.mjs
-
-# Static review (no command):
-# - src/mintcontract-idc/src/lib.rs rodit_mint owner binding
-# - src/idclawserver-idc/src/routes/signclient.public.routes.js fee_data shape

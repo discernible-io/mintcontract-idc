@@ -105,14 +105,14 @@ The compiled contract will be at: `./target/near/rodit_near.wasm`
 
 #### Option 1: Using the Deploy Script (Recommended)
 
-The `deploy.sh` script handles initial deployment and upgrades automatically:
+`scripts/deploy.sh` handles initial deployment and upgrades automatically:
 
 ```bash
 # Deploy to testnet with default RPC
-./deploy.sh your-account.testnet testnet
+./scripts/deploy.sh your-account.testnet testnet
 
 # Or use FastNEAR RPC for better performance
-./deploy.sh your-account.testnet testnet-fastnear
+./scripts/deploy.sh your-account.testnet testnet-fastnear
 ```
 
 **What the script does**:
@@ -167,13 +167,13 @@ near view your-account.testnet get_contract_status \
 
 ```bash
 # Deploy to mainnet using FastNEAR RPC (recommended for reliability)
-./deploy.sh your-account.near mainnet-fastnear
+./scripts/deploy.sh your-account.near mainnet-fastnear
 
 # Or use Lava RPC
-./deploy.sh your-account.near mainnet-lava
+./scripts/deploy.sh your-account.near mainnet-lava
 
 # Or use custom RPC endpoint
-./deploy.sh your-account.near mainnet https://rpc.mainnet.near.org
+./scripts/deploy.sh your-account.near mainnet https://rpc.mainnet.near.org
 ```
 
 **Available Mainnet RPC Endpoints**:
@@ -243,6 +243,15 @@ near call your-account.near add_authorized_signer \
   --deposit 0.000000000000000000000001
 ```
 
+Authorized signers are 64-character lowercase hex Ed25519 public keys. Adding and removing them is owner-only and requires a 1 yoctoNEAR deposit. List the keys on chain with `view_authorized_signers` or `./scripts/list_authorized_signers.sh`. The list script takes the account as an argument, from `CONTRACT_NAME`, or from an untracked local `account.env` that contains only `CONTRACT_NAME=<account>.near`.
+
+```bash
+export CONTRACT_NAME=your-contract.near
+./scripts/list_authorized_signers.sh
+```
+
+`./scripts/deploy.sh add-signers` adds one or more keys. After any change, list the keys again, confirm SignPortal and signclient still use an authorized key, and rotate any key that may have been exposed. Do not commit `account.env` or `~/.near-credentials/`, do not share signer private keys in issues, chat, or CI logs, and do not leave unused or unknown public keys authorized on mainnet.
+
 #### 2. Configure Fees (Optional)
 
 ```bash
@@ -282,7 +291,7 @@ The upgrade process uses a time-locked mechanism for security:
 
 **Using the deploy script** (handles everything automatically):
 ```bash
-./deploy.sh your-account.near mainnet-fastnear
+./scripts/deploy.sh your-account.near mainnet-fastnear
 ```
 
 **Manual upgrade process**:
@@ -821,8 +830,6 @@ NNSWF=John,NSWF=Smith,ContactURI=twitter:x.com:jsmith,taxRes=US,inceptDateTime=1
 - Prevents replay of signed fee payloads across different minting operations while preserving existing caller expectations
 - Verifies `token_id`, `mintingfeeaccount`, and `owneraccount_id` match before signature verification
 
-> **Known low-risk gap**: current callers do not include `owneraccount_id` inside the signed fee JSON. An attacker who intercepts that payload *and* mints before the legitimate caller could redirect the token to themselves. Mitigation: update signing services to embed and sign `owneraccount_id` in the fee payload.
-
 #### ✅ 1 Yocto Guards (HIGH)
 - All state-changing functions now require 1 yocto deposit
 - Prevents misuse with function-call access keys
@@ -1031,12 +1038,9 @@ The fee system includes multiple security protections:
 
 ## API Reference
 
-Machine-readable **NEAR ABI** (Swagger-equivalent for this contract) and a generated method index:
+Machine-readable **NEAR ABI** for this contract: [`docs/abi-contract.json`](docs/abi-contract.json).
 
-- [`docs/CONTRACT_API.md`](docs/CONTRACT_API.md) — human-readable call/view methods and types
-- [`docs/abi-contract.json`](docs/abi-contract.json) — NEAR ABI JSON Schema
-
-Regenerate after changing public methods or types:
+Regenerate it after changing public methods or types:
 
 ```bash
 ./scripts/generate-contract-api.sh
@@ -1229,8 +1233,8 @@ small number of source-of-truth files. Most other files pick it up automatically
 
 | File | What to change | Propagates to |
 |------|----------------|---------------|
-| `account.env` | `CONTRACT_NAME=<name>.near` | `deploy.sh` (help text, default account), `monitor_contract.sh` (default account), `src/lib.rs` `CONTRACT_NAME` constant (via `build.rs` at compile time) |
-| `Cargo.toml` | `name = "contract-<name>-near"` | `Cargo.lock` (auto-regenerated), wasm artifact filename (auto-derived by `deploy.sh`) |
+| `account.env` | `CONTRACT_NAME=<name>.near` | `scripts/deploy.sh` (help text, default account), `scripts/monitor_contract.sh` (default account), `src/lib.rs` `CONTRACT_NAME` constant (via `build.rs` at compile time) |
+| `Cargo.toml` | `name = "contract-<name>-near"` | `Cargo.lock` (auto-regenerated), wasm artifact filename (auto-derived by `scripts/deploy.sh`) |
 | `src/lib.rs` | `RODIT_METADATA_SPEC` constant | Contains a versioned spec string with a date suffix; update when cutting a release |
 
 #### Documentation-only references (no runtime effect)
@@ -1248,15 +1252,41 @@ For build and deploy instructions, see [Deployment Guide](#deployment-guide) abo
 
 ### Deployment Checklist
 
-- [ ] Compile contract in release mode (debug logs disabled)
-- [ ] Verify upgrade delay is set appropriately for the target environment
-- [ ] Configure appropriate fee values for your use case
-- [ ] Add authorized signers for fee verification
-- [ ] Test all rate limiting scenarios
-- [ ] Verify storage refunds work correctly on burn
-- [ ] Run full test suite
-- [ ] Deploy to testnet first
-- [ ] Monitor for any issues before mainnet deployment
+Use this list before every deploy or upgrade. Prefer testnet first.
+
+**Before build**
+
+- [ ] Working tree is clean, or the exact commit under review is recorded
+- [ ] `Cargo.lock` matches the intended dependency set
+- [ ] `account.env` is local-only (not tracked) if you use it for convenience
+- [ ] Signer list for this environment is reviewed
+
+**Build**
+
+- [ ] Build with `./scripts/deploy.sh` or `cargo near build non-reproducible-wasm --no-abi`
+- [ ] Record the WASM SHA-256 of the artifact you intend to deploy
+- [ ] Confirm network selection is explicit (`NEAR_NETWORK_CONFIG`, a named connection, or an `rpc_url` argument). `scripts/deploy.sh` logs the `RPC selection` source
+
+**Pre-upgrade / pre-deploy**
+
+- [ ] `get_contract_status`, `get_config`, and `get_upgrade_status` look sane on the target account
+- [ ] Upgrade delay is at least 24 hours on mainnet (`86400` seconds)
+- [ ] Fee and minting status match operator intent
+- [ ] The same artifact has been rehearsed on testnet when changing mainnet
+- [ ] Compile in release mode when debug logs must be absent
+- [ ] Run the test suite, including rate-limit and storage-refund checks
+
+**Deploy / upgrade**
+
+- [ ] Deploy or propose the upgrade with owner credentials, and attach 1 yoctoNEAR where the method requires it
+- [ ] Wait the full upgrade delay before finalizing a mainnet upgrade
+- [ ] Re-run `./scripts/deploy.sh verify <account> <network>` (or `status`) after the change
+
+**Post-deploy**
+
+- [ ] Spot-check mint, pause, and resume paths appropriate to the change
+- [ ] Confirm authorized signers still match the intended set
+- [ ] Archive the WASM hash and commit SHA in the operator log
 
 ### Migration from Previous Version
 
@@ -1495,17 +1525,17 @@ Categories are ordered by value count to optimize charset usage:
 #### 1. **Credential Security**
 - **Never commit private keys** to version control
 - Store credentials in `~/.near-credentials/` with 600 permissions
-- Run `./secure_credentials.sh` after creating/updating credentials
+- Run `./scripts/secure_credentials.sh` after creating/updating credentials
 - Ensure `account.env` is in `.gitignore`
 
 #### 2. **Deployment Security**
 - Review the [Deployment Checklist](#deployment-checklist) before each deployment
 - Test all changes on testnet first
-- Use `./monitor_contract.sh` to verify deployment
+- Use `./scripts/monitor_contract.sh` to verify deployment
 - Document all configuration changes
 
 #### 3. **Operational Security**
-- Monitor contract status regularly: `./monitor_contract.sh`
+- Monitor contract status regularly: `./scripts/monitor_contract.sh`
 - Review authorized signers periodically
 - Keep deployment scripts updated
 - Have emergency response plan ready
@@ -1520,19 +1550,10 @@ Categories are ordered by value count to optimize charset usage:
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `secure_credentials.sh` | Set proper permissions on credential files | `./secure_credentials.sh` |
-| `monitor_contract.sh` | Check contract status and configuration | `./monitor_contract.sh [account] [network]` |
-| `list_authorized_signers.sh` | List on-chain fee-signer public keys | `./list_authorized_signers.sh [account] [network]` |
-| `emergency_pause.sh` | Pause minting immediately | `./emergency_pause.sh [account] [network]` |
-
-### Security Documentation
-
-| Document | Purpose |
-|----------|---------|
-| [`SECURITY.md`](SECURITY.md) | Responsible disclosure and vulnerability reporting |
-| [`DEPLOYMENT_CHECKLIST.md`](DEPLOYMENT_CHECKLIST.md) | Pre-deploy / upgrade operator checklist |
-| [`AUTHORIZED_SIGNERS.md`](AUTHORIZED_SIGNERS.md) | Signer management without private material |
-| [`emergency_pause.sh`](emergency_pause.sh) | Owner pause helper (`pause_contract` + 1 yocto) |
+| `scripts/secure_credentials.sh` | Set proper permissions on credential files | `./scripts/secure_credentials.sh` |
+| `scripts/monitor_contract.sh` | Check contract status and configuration | `./scripts/monitor_contract.sh [account] [network]` |
+| `scripts/list_authorized_signers.sh` | List on-chain fee-signer public keys | `./scripts/list_authorized_signers.sh [account] [network]` |
+| `scripts/emergency_pause.sh` | Pause minting immediately | `./scripts/emergency_pause.sh [account] [network]` |
 
 ### Key Security Features
 
@@ -1545,7 +1566,20 @@ Categories are ordered by value count to optimize charset usage:
 
 ### Reporting Security Issues
 
-**DO NOT** open public issues for security vulnerabilities. Contact **rodit@identityclaw.com** for responsible disclosure.
+Do not open public GitHub issues for vulnerabilities in this contract or its operator scripts.
+
+Email **rodit@identityclaw.com** with:
+
+- Affected contract account and network (testnet or mainnet)
+- A description of the issue and impact
+- Steps to reproduce, or a proof of concept when it is safe to share
+- A preferred contact for follow-up
+
+Reports are acknowledged within a few business days, and a fix and disclosure timeline is coordinated from there.
+
+In scope: on-chain logic under `src/`, operator scripts under `scripts/`, and committed CI configuration.
+
+Out of scope unless they lead to a contract compromise: third-party NEAR RPC providers, wallets, or explorers; social engineering against operators; denial of service against public RPC endpoints.
 
 ---
 
@@ -1560,15 +1594,7 @@ The following enhancements are recommended for implementation in upcoming versio
 - **Behavior**: `rodit_mint` aborts if flag is set; transfers, burns, and views unaffected
 - **Benefit**: Prevents minting after security incident while keeping contract operational
 
-### 2. Upgrade State Resilience (Reliability)
-- **Purpose**: Handle state layout changes across upgrades without deserialization failures
-- **Implementation**: 
-  - Create `ContractLegacyState` struct matching pre-upgrade layout
-  - In `upgrade()`, try deserializing both new and legacy formats
-  - Extract rebuild logic into `rebuild_from_previous_state()` helper
-- **Benefit**: Smooth upgrades even when adding new fields; prevents bricking on version mismatches
-
-### 3. Implicit Account Funding (Operational)
+### 2. Implicit Account Funding (Operational)
 - **Purpose**: Ensure newly minted tokens show up in user wallets immediately
 - **Implementation**:
   - Define `MIN_ACCOUNT_CREATION_TRANSFER = 0.00125 NEAR` (NEAR's implicit account minimum)
@@ -1576,14 +1602,7 @@ The following enhancements are recommended for implementation in upcoming versio
   - In fee handler, transfer `max(initialize_fee, MIN_ACCOUNT_CREATION_TRANSFER)` to recipient
 - **Benefit**: Implicit accounts are created on first mint; tokens visible in wallets without manual funding
 
-### 4. Fee Signature Binding with Backward Compatibility (Security)
-- **Purpose**: Prevent replay attacks while supporting legacy clients
-- **Implementation**:
-  - Require `token_id` and `mintingfeeaccount` in signed JSON (mandatory)
-  - Make `owneraccount_id` optional: validate if present, allow if absent
-- **Benefit**: Modern clients gain stronger binding; legacy integrations continue working
-
-### 5. README Length Optimization (Documentation)
+### 3. README Length Optimization (Documentation)
 - **Purpose**: Reduce verbosity while retaining critical information
 - **Changes**:
   - Consolidate metadata field examples into single table

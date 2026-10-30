@@ -1,15 +1,16 @@
 #!/bin/bash
 
 # monitor_contract.sh - Monitor contract status and configuration
-# Usage: ./monitor_contract.sh [account_id] [network]
+# Usage: ./scripts/monitor_contract.sh [account_id] [network]
 
 set -e
 
 # Source account.env for the default contract name
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/account.env" ]; then
-  # shellcheck source=account.env
-  source "$SCRIPT_DIR/account.env"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -f "$REPO_ROOT/account.env" ]; then
+  # shellcheck source=../account.env
+  source "$REPO_ROOT/account.env"
 fi
 
 ACCOUNT_ID=${1:-"${CONTRACT_NAME:-genaaaa-identyclaw-com.near}"}
@@ -154,5 +155,5 @@ echo ""
 echo "=== Monitor Complete ==="
 echo ""
 echo "To run this monitor periodically:"
-echo "  watch -n 60 ./monitor_contract.sh $ACCOUNT_ID $NETWORK"
+echo "  watch -n 60 $SCRIPT_DIR/monitor_contract.sh $ACCOUNT_ID $NETWORK"
 echo ""

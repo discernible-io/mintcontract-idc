@@ -2,7 +2,7 @@
 
 # deploy.sh - Automates the NEAR contract deployment, upgrade, and signer management
 # Version: 1.0.0
-# Usage: ./deploy.sh <command> [arguments]
+# Usage: ./scripts/deploy.sh <command> [arguments]
 #
 # Commands:
 #   deploy <account_id> [network] [rpc_url]
@@ -28,8 +28,10 @@ VERSION="1.0.0"
 # Derive contract name and wasm path from project files so there is only
 # one place to update (local account.env / Cargo.toml).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
-if [[ -f "$SCRIPT_DIR/account.env" ]]; then
+if [[ -f "$REPO_ROOT/account.env" ]]; then
   # Load only CONTRACT_NAME=value (do not eval arbitrary shell).
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
@@ -40,12 +42,12 @@ if [[ -f "$SCRIPT_DIR/account.env" ]]; then
         CONTRACT_NAME="${CONTRACT_NAME#\"}"
         ;;
     esac
-  done < "$SCRIPT_DIR/account.env"
+  done < "$REPO_ROOT/account.env"
 fi
 DEFAULT_ACCOUNT="${CONTRACT_NAME:-}"
 
 # Wasm artifact name: Cargo turns hyphens into underscores.
-CARGO_PKG_NAME=$(grep '^name' "$SCRIPT_DIR/Cargo.toml" | head -1 | sed 's/.*= *"//;s/"//')
+CARGO_PKG_NAME=$(grep '^name' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*= *"//;s/"//')
 WASM_FILE="./target/near/${CARGO_PKG_NAME//-/_}.wasm"
 
 add_custom_network_connection() {
@@ -288,11 +290,11 @@ RODIT Contract Deployment & Signer Management Script v${VERSION}
 ================================================================
 
 USAGE:
-  ./deploy.sh help|--help|-h
-  ./deploy.sh deploy <account_id> [network] [rpc_url]
-  ./deploy.sh add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
-  ./deploy.sh verify|status <account_id> [network] [rpc_url]
-  ./deploy.sh burn-tokens <account_id> [network] [rpc_url] [keep_count]
+  ./scripts/deploy.sh help|--help|-h
+  ./scripts/deploy.sh deploy <account_id> [network] [rpc_url]
+  ./scripts/deploy.sh add-signers <account_id> [network] [rpc_url] <signer1> [signer2] ...
+  ./scripts/deploy.sh verify|status <account_id> [network] [rpc_url]
+  ./scripts/deploy.sh burn-tokens <account_id> [network] [rpc_url] [keep_count]
 
 COMMANDS:
   deploy       Build and deploy/upgrade the contract code for the specified account.
@@ -327,29 +329,29 @@ NOTES:
 
 EXAMPLES:
   1. Initial deployment to testnet (no custom RPC):
-       ./deploy.sh deploy ${acct}
+       ./scripts/deploy.sh deploy ${acct}
 
   2. Upgrade existing contract on mainnet:
-       ./deploy.sh deploy ${acct} mainnet
+       ./scripts/deploy.sh deploy ${acct} mainnet
 
   3. Deploy using a custom RPC endpoint:
-       ./deploy.sh deploy ${acct} mainnet-custom https://rpc.mainnet.near.org
+       ./scripts/deploy.sh deploy ${acct} mainnet-custom https://rpc.mainnet.near.org
 
   4. Add authorized signers on testnet (no custom RPC):
-       ./deploy.sh add-signers ${acct} testnet "" \\
+       ./scripts/deploy.sh add-signers ${acct} testnet "" \\
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa \\
          43d3c5b5e77a46b52933bc7a8b79b06f16dd4ca3cfbacd0e6fede0e7e01782ac \\
          3467c4e8f5b0445d474742f976d24ca1991d843f58d8b9aaf45e6b6b8ff6603a
 
   5. Add signers using default network (testnet) — network argument omitted:
-       ./deploy.sh add-signers ${acct} \\
+       ./scripts/deploy.sh add-signers ${acct} \\
          76177d5ebd89f329945ab8991357018f44ab0fe12f7a8216c6054e565e80a7aa
 
   6. Verify deployed contract state:
-       ./deploy.sh verify ${acct} mainnet
+       ./scripts/deploy.sh verify ${acct} mainnet
 
   7. Burn all tokens except the last two minted:
-       ./deploy.sh burn-tokens ${acct} mainnet
+       ./scripts/deploy.sh burn-tokens ${acct} mainnet
 
 EOF
 }
@@ -386,7 +388,7 @@ case "$COMMAND" in
   "deploy")
     if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for deploy command"
-      echo "Run './deploy.sh help' for usage information."
+      echo "Run './scripts/deploy.sh help' for usage information."
       exit 1
     fi
     ACCOUNT_ID=$1
@@ -409,7 +411,7 @@ case "$COMMAND" in
   "add-signers")
     if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for add-signers command"
-      echo "Run './deploy.sh help' for usage information."
+      echo "Run './scripts/deploy.sh help' for usage information."
       exit 1
     fi
     ACCOUNT_ID=$1
@@ -434,7 +436,7 @@ case "$COMMAND" in
   "verify"|"status")
     if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for $COMMAND command"
-      echo "Run './deploy.sh help' for usage information."
+      echo "Run './scripts/deploy.sh help' for usage information."
       exit 1
     fi
     ACCOUNT_ID=$1
@@ -457,7 +459,7 @@ case "$COMMAND" in
   "burn-tokens")
     if [ -z "${1:-}" ]; then
       echo "Error: account_id is required for burn-tokens command"
-      echo "Run './deploy.sh help' for usage information."
+      echo "Run './scripts/deploy.sh help' for usage information."
       exit 1
     fi
     ACCOUNT_ID=$1
@@ -484,7 +486,7 @@ case "$COMMAND" in
     ;;
   *)
     echo "Error: Unknown command '$COMMAND'"
-    echo "Run './deploy.sh help' for usage information."
+    echo "Run './scripts/deploy.sh help' for usage information."
     exit 1
     ;;
 esac
@@ -593,7 +595,7 @@ if ! $NEAR_CLI view "$ACCOUNT_ID" get_contract_status --network-id "$NETWORK" >/
   
   echo "Authorized signers were not modified." 
   echo "To add or update signers, run:"
-  echo "  ./deploy.sh add-signers $ACCOUNT_ID $NETWORK $CUSTOM_RPC_URL <signer1> [signer2] ..."
+  echo "  ./scripts/deploy.sh add-signers $ACCOUNT_ID $NETWORK $CUSTOM_RPC_URL <signer1> [signer2] ..."
   echo
 
   exit 0

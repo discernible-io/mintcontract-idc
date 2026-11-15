@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Discernible IO
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! # RODIT Smart Contract
 //! 
 //! This is the main smart contract for the RODIT (Rich Online Digital Token) system.

@@ -3,8 +3,7 @@ name = "contract-genaaaa-identyclaw-com-near"
 version = "0.2.0"
 edition = "2021"
 authors = ["Your Name <github@discernible.io>"]
-license = "LicenseRef-UNLICENSED"
-license-file = "LICENSE"
+license = "AGPL-3.0-only"
 
 [lib]
 crate-type = ["cdylib"]

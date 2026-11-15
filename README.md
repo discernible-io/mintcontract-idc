@@ -1322,8 +1322,9 @@ If upgrading from an older contract version:
 
 ## Licensing & Compliance
 
-- All rights reserved.
-- For trials/evaluation, contact: **rodit@identityclaw.com**
+- Licensed under the GNU Affero General Public License v3.0 only ([AGPL-3.0-only](LICENSE)).
+- Copyright (c) 2026 Discernible IO.
+- Questions: **rodit@identityclaw.com**
 
 ---
 
@@ -1615,7 +1616,7 @@ The following enhancements are recommended for implementation in upcoming versio
 
 ## License
 
-UNLICENSED — Copyright (c) 2026 Discernible IO. All rights reserved.
+GNU Affero General Public License v3.0 only (AGPL-3.0-only). Copyright (c) 2026 Discernible IO. See [LICENSE](LICENSE).
 
 ---
 

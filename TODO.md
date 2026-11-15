@@ -336,6 +336,40 @@ Why it matters:
 - `cicd-deployment-standard.md` now treats Gitleaks as a required CI gate alongside `enforce-minimum-package-age.js`. The same severity applies: any finding must fail the job before content reaches a deployed artifact.
 - Complements `.gitignore` and `secrets.env` host-only controls; detects secrets already present in tracked files or history.
 
+## 16. Versioned Root Holders For Portal And Sanctum (Same NFTs)
+
+**Status (2026-11-03):** Open. Design only; not implemented.
+
+Effort/risk: high effort; **high implementation risk** (contract layout + 24-hour upgrade). Rollout must stay in lockstep with `rodit-sdk`, SignPortal, and SignSanctum. Depends on item **13** if `Contract` gains fields.
+
+Portal and sanctum stay the **same two RODiTs**. A generation is only which NEAR implicit account (`owner_id`, which is the Ed25519 public key) held each token, and from which date. Do not mint a second pair, do not suffix facial `token_id`s, and do not accumulate historical `id=` segments on `serviceprovider_id`.
+
+The verifier primitive is **owner-at-generation**: given the portal or sanctum `token_id` plus a generation (or timestamp), return the implicit account that was the public key at that time.
+
+NEAR RPC can replay `rodit_token` with `block_id` instead of `finality` ([contract RPC](https://docs.near.org/api/rpc/contracts)), but regular nodes (including the FastNEAR host this stack uses) drop state after about five epochs (~36 hours, `GARBAGE_COLLECTED_BLOCK`). Archival RPC is a different endpoint and wants a block height or hash, not a calendar date. `view_access_key_list` is the wrong facility: rotation is a new implicit account taking the NFT, not a new access key on the old account. Archival replay is a forensic backup, not the login / HOLA / `isamatch` path.
+
+Recommended change:
+
+- Add a tiny side map only for the two root token ids (they rarely rotate), not a history list on every token:
+  - `history_enabled: UnorderedSet<token_id>` — mark the pair after mint; do not match on the names `portal` / `sanctum` (`token_id` never contains them; two `id=` segments also appear on children).
+  - `previous_owners: LookupMap<token_id → [(generation, account_id, valid_from)]>` — generation 0 is the mint-time holders.
+- Keep `Token { owner_id }` as the live holder. On `rodit_transfer` and `recover_token`, if `history_enabled` contains the id, append `(old owner_id, block_timestamp)` then set the new owner. Ordinary client/server transfers stay overwrite-only.
+- Expose current-state views (`finality: final`):
+  - `rodit_owner_at({ token_id, generation })` / `rodit_owner_at({ token_id, timestamp })` → `account_id`
+  - `rodit_owner_history(token_id)`
+  - `rodit_token` still returns the live `owner_id` (optional empty `previous_owners` on `JsonToken` is fine; do not make events or `rodit_tokens_for_owner` the read API).
+- Pair crossed signatures always verify against **generation 0**. After rotation, live `owner_id` is the issuance key for new children, not the key that signed the pair.
+- New client and server RODiTs carry that generation (or date) **inside the signed metadata**. Prefer `;gen=N` on `serviceprovider_id` (already in the canonical hash; contract only length-checks it; no `TokenMetadata` Borsh rewrite). A dedicated metadata field is clearer but migrates every existing token. `not_before` is too coarse.
+- Missing `gen` on already-minted children means **generation 0**, not the current owner. The first rotation otherwise breaks every existing client and server.
+- Rotate in one NEAR transaction: two `rodit_transfer` calls, same `valid_from`, same generation index. Wipe the previous private keys off-chain after cutover. Do not burn, remint, or transfer without `history_enabled`.
+- `rodit-sdk`: parse `gen` from the child; call `rodit_owner_at`; check `serviceprovider_signature` against that public key. Vaults keep the same `token_id` and swap the secret.
+
+Why it matters:
+
+- Lets the root key pair rotate without minting different NFTs or invalidating historical trust chains.
+- Keeps live verification on ordinary RPC (`finality: final`) instead of archival `block_id` queries.
+- Leaves this contract oblivious of portal/sanctum roles: owner history is an opt-in token property.
+
 ## Verification Notes
 
 Static review was completed against the files listed above and updated against the latest `../docs` standards as of 2026-05-25. Rechecked 2026-10-21: items **3** and **8** (delay value) match the tree; item **6** no longer has the upgrade-delay, rate-limit, or `#[borsh(default)]` mismatches; item **7**'s workflow is absent from `HEAD` rather than an uncommitted deletion. Standards that have significantly expanded since the original review include `cicd-deployment-standard.md` (Gitleaks, slim images, systemd linger, APP_DIR), `documentation-standard.md` (principles 12–16), `test-constitution.md` (SDK-first, protocol-sensitive, findings-first), and the addition of `planned-improvements.md`, `frontend-branch-env-migration.md`, and `signatures/`. I attempted to run `cargo test`, but the environment did not have `cargo` installed, so no local build/test result is included in this review.

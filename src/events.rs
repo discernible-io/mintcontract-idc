@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Discernible IO
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use near_sdk::{env, AccountId};
 use serde_json::{json, Value};
 

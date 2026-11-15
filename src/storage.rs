@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Discernible IO
+// SPDX-License-Identifier: AGPL-3.0-only
+
 use near_sdk::{env, AccountId, Promise, NearToken, require};
 use crate::events::{emit_storage_payment, emit_contract_fee, emit_provider_fee};
 

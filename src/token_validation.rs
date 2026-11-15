@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Discernible IO
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Token metadata validation module
 //! 
 //! This module provides comprehensive validation for RODIT token metadata fields.
